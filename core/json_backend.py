@@ -14,11 +14,26 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
+from . import settings
+
 _QUEUE_PATH = Path(__file__).resolve().parent.parent / "data" / "queue.json"
 
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+def _age_days(ts: str | None) -> float:
+    """Días transcurridos desde una marca ISO. Si no hay fecha -> 'infinito'."""
+    if not ts:
+        return 10**9
+    try:
+        dt = datetime.fromisoformat(ts)
+    except ValueError:
+        return 10**9
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return (datetime.now(timezone.utc) - dt).total_seconds() / 86400
 
 
 def _load() -> list[dict]:
@@ -39,26 +54,36 @@ def all_items() -> list[dict]:
     return _load()
 
 
-def add_urls(urls: list[str], site_url: str) -> int:
-    """Añade URLs a la cola evitando duplicados aún pendientes. Devuelve cuántas se añadieron."""
+def add_urls(urls: list[str], site_url: str, retry_days: int | None = None) -> int:
+    """Encola URLs no indexadas. Devuelve cuántas se encolaron (nuevas + reintentos).
+
+    - Si la URL ya está 'pending' -> se ignora (ya está en cola).
+    - Si está 'sent'/'error' y han pasado >= retry_days -> se reintenta (su fila
+      vuelve a 'pending'), porque sigue sin indexar.
+    - Si está 'sent'/'error' pero es reciente -> se ignora (se le da tiempo a Google).
+    """
+    if retry_days is None:
+        retry_days = int(settings.get("retry_days", 15))
+
     items = _load()
-    # Evita duplicar URLs ya en proceso o ya enviadas (no re-encolar lo enviado).
-    existing = {it["url"] for it in items if it["status"] in ("pending", "sent")}
+    by_url = {it["url"]: it for it in items}
     added = 0
     for url in urls:
-        if url in existing:
+        it = by_url.get(url)
+        if it is None:
+            items.append({
+                "url": url, "site_url": site_url, "status": "pending",
+                "added_at": _now(), "sent_at": None, "detail": "",
+            })
+            added += 1
+        elif it["status"] == "pending":
             continue
-        items.append(
-            {
-                "url": url,
-                "site_url": site_url,
-                "status": "pending",
-                "added_at": _now(),
-                "sent_at": None,
-                "detail": "",
-            }
-        )
-        added += 1
+        elif _age_days(it.get("sent_at")) >= retry_days:
+            it["status"] = "pending"
+            it["added_at"] = _now()
+            it["sent_at"] = None
+            it["detail"] = "reintento (seguía sin indexar)"
+            added += 1
     _save(items)
     return added
 

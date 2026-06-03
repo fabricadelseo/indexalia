@@ -27,8 +27,8 @@ def all_items():
     return _backend().all_items()
 
 
-def add_urls(urls, site_url):
-    return _backend().add_urls(urls, site_url)
+def add_urls(urls, site_url, retry_days=None):
+    return _backend().add_urls(urls, site_url, retry_days)
 
 
 def pending(site_url=None):

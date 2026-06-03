@@ -23,6 +23,18 @@ from googleapiclient.discovery import build
 from .auth import get_credentials
 from . import settings
 
+
+def _age_days(ts: str | None) -> float:
+    if not ts:
+        return 10**9
+    try:
+        dt = datetime.fromisoformat(ts)
+    except ValueError:
+        return 10**9
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return (datetime.now(timezone.utc) - dt).total_seconds() / 86400
+
 _TAB = "queue"
 _HEADER = ["url", "site_url", "status", "added_at", "sent_at", "detail"]
 
@@ -81,16 +93,47 @@ def all_items() -> list[dict]:
     return [_to_dict(r) for r in _rows()]
 
 
-def add_urls(urls: list[str], site_url: str) -> int:
+def add_urls(urls: list[str], site_url: str, retry_days: int | None = None) -> int:
+    """Encola URLs no indexadas (nuevas + reintentos tras retry_days sin indexar).
+
+    - 'pending' -> se ignora.
+    - 'sent'/'error' con antigüedad >= retry_days -> se reintenta (su fila vuelve
+      a 'pending', sin duplicar).
+    - 'sent'/'error' reciente -> se ignora.
+    """
+    if retry_days is None:
+        retry_days = int(settings.get("retry_days", 15))
+
     svc = _svc()
     _ensure_header(svc)
-    # Evita duplicar URLs ya en proceso o ya enviadas (no re-encolar lo enviado).
-    existing = {it["url"] for it in all_items() if it["status"] in ("pending", "sent")}
+    rows = _rows()
+    index = {}
+    for i, r in enumerate(rows):
+        d = _to_dict(r)
+        index[d["url"]] = (i + 2, d)  # fila real (cabecera = 1)
+
     new_rows = []
+    added = 0
     for url in urls:
-        if url in existing:
-            continue
-        new_rows.append([url, site_url, "pending", _now(), "", ""])
+        if url in index:
+            row_num, d = index[url]
+            if d["status"] == "pending":
+                continue
+            if _age_days(d.get("sent_at")) >= retry_days:
+                svc.spreadsheets().values().update(
+                    spreadsheetId=_sheet_id(),
+                    range=f"{_TAB}!A{row_num}:F{row_num}",
+                    valueInputOption="RAW",
+                    body={"values": [[
+                        url, d["site_url"] or site_url, "pending", _now(), "",
+                        "reintento (seguía sin indexar)",
+                    ]]},
+                ).execute()
+                added += 1
+        else:
+            new_rows.append([url, site_url, "pending", _now(), "", ""])
+            added += 1
+
     if new_rows:
         svc.spreadsheets().values().append(
             spreadsheetId=_sheet_id(),
@@ -99,7 +142,7 @@ def add_urls(urls: list[str], site_url: str) -> int:
             insertDataOption="INSERT_ROWS",
             body={"values": new_rows},
         ).execute()
-    return len(new_rows)
+    return added
 
 
 def pending(site_url: str | None = None) -> list[dict]:

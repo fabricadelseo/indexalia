@@ -203,6 +203,12 @@ with st.sidebar:
     daily_limit = st.number_input(
         "URLs a enviar por día (Google)", min_value=1, max_value=20, value=DAILY_LIMIT
     )
+    retry_days = st.number_input(
+        "Reintentar tras (días sin indexar)", min_value=0, max_value=90,
+        value=int(settings.get("retry_days", 15)),
+        help="Si una URL se envió hace estos días y sigue sin indexar, se vuelve "
+        "a enviar. 0 = reintentar siempre.",
+    )
     st.caption(f"Backend de la cola: **{storage.backend_name()}**")
 
     st.divider()
@@ -365,7 +371,7 @@ with tab_analisis:
         )
         if an["auto"] and rows:
             no_idx = [r["URL"] for r in rows if not r["_indexed"]]
-            registradas = storage.add_urls(no_idx, an["site_url"])
+            registradas = storage.add_urls(no_idx, an["site_url"], retry_days=retry_days)
             restante = max(0, daily_limit - storage.count_sent_today())
             enviadas, errores = enviar_a_indexar(restante)
             st.session_state.envio_resumen = {
@@ -443,7 +449,7 @@ with tab_analisis:
         if no_index_urls and st.button(
             f"📤 Enviar a indexar {len(no_index_urls)} no indexadas"
         ):
-            registradas = storage.add_urls(no_index_urls, site_url)
+            registradas = storage.add_urls(no_index_urls, site_url, retry_days=retry_days)
             restante = max(0, daily_limit - storage.count_sent_today())
             enviadas, errores = enviar_a_indexar(restante)
             en_proceso = len(storage.pending())
