@@ -44,36 +44,27 @@ st.markdown(
     """
     <style>
       #MainMenu, footer {visibility: hidden;}
-      .block-container {padding-top: 1.2rem;}
-
-      /* Títulos en gris de marca */
+      .block-container {padding-top: 1.4rem; max-width: 1150px;}
       h1, h2, h3 {color: #37373A;}
 
-      .hero {
-        background: linear-gradient(120deg, #F26C21 0%, #FF8A3D 58%, #FFA45F 100%);
-        padding: 1.6rem 2rem; border-radius: 18px; color: #fff;
-        margin-bottom: 1.4rem; box-shadow: 0 10px 30px rgba(242,108,33,.28);
-      }
-      .hero h1 {margin: 0; font-size: 2rem; font-weight: 800; letter-spacing: -.01em; color:#fff;}
-      .hero p  {margin: .4rem 0 0; opacity: .96; font-size: 1.02rem;}
-      .hero .brand {font-size: .76rem; opacity: .92; letter-spacing: .09em;
-        text-transform: uppercase; margin-top: .6rem; font-weight: 600;}
+      /* Cabecera minimalista */
+      .appbar {display: flex; align-items: baseline; gap: .7rem;
+        padding-bottom: .5rem; border-bottom: 1px solid #ECEAE7; margin-bottom: .2rem;}
+      .appbar .logo {font-size: 1.55rem; font-weight: 800; color: #37373A; letter-spacing: -.02em;}
+      .appbar .logo .dot {color: #F26C21;}
+      .appbar .tag {font-size: .72rem; color: #A6A6AB; text-transform: uppercase;
+        letter-spacing: .1em; margin-left: auto;}
 
-      /* Tarjetas de métricas con acento naranja */
+      /* Tarjetas de métricas sobrias */
       div[data-testid="stMetric"] {
-        background: #fff; border: 1px solid #ecebe9; border-top: 3px solid #F26C21;
-        border-radius: 14px; padding: 1rem 1.2rem; box-shadow: 0 1px 3px rgba(16,24,40,.06);
+        background: #fff; border: 1px solid #EDECEA; border-radius: 12px;
+        padding: .85rem 1.05rem;
       }
-      div[data-testid="stMetricLabel"] p {font-weight: 600; color: #6b6b70;}
+      div[data-testid="stMetricLabel"] p {font-weight: 600; color: #8a8a8f; font-size: .82rem;}
 
-      /* Botones */
-      .stButton > button {border-radius: 10px; font-weight: 600;}
-      .stButton > button[kind="primary"] {box-shadow: 0 4px 12px rgba(242,108,33,.30);}
-
-      /* Pestañas */
-      button[data-baseweb="tab"] {font-size: 1rem; font-weight: 600;}
-
-      /* Enlaces en naranja de marca */
+      /* Botones y pestañas: el naranja solo como acento */
+      .stButton > button {border-radius: 9px; font-weight: 600;}
+      button[data-baseweb="tab"] {font-size: .98rem; font-weight: 600;}
       a, a:visited {color: #D9531A;}
     </style>
     """,
@@ -85,15 +76,18 @@ usuario_actual = access.require_login()
 
 st.markdown(
     """
-    <div class="hero">
-      <h1>🔎 Indexalia</h1>
-      <p>Detecta URLs no indexadas de tus clientes y solicita su indexación
-      de forma escalonada (Google + Bing/Yandex).</p>
-      <p class="brand">by La Fábrica del SEO · indexalia.es</p>
+    <div class="appbar">
+      <span class="logo">Indexalia<span class="dot">.</span></span>
+      <span class="tag">La Fábrica del SEO</span>
     </div>
     """,
     unsafe_allow_html=True,
 )
+st.caption(
+    "Detecta URLs no indexadas de tus clientes y envíalas a indexar "
+    "(Google + Bing/Yandex)."
+)
+st.write("")
 
 
 def donut(indexadas: int, no_indexadas: int) -> go.Figure:
@@ -273,7 +267,7 @@ perms = {}
 
 with sel_cols[0]:
     if st.session_state.sites is None:
-        st.info("Pulsa **Cargar clientes** para traer tus propiedades de Search Console.")
+        st.caption("Pulsa **Cargar clientes** para traer tus propiedades de Search Console.")
     elif not st.session_state.sites:
         st.warning(
             "No hay propiedades accesibles. Añade el email de la cuenta de "
@@ -401,7 +395,7 @@ with tab_analisis:
         else:
             st.session_state.envio_resumen = None
         if an["i"] < len(an["urls"]):
-            st.info(f"⏹️ Análisis detenido en {an['i']}/{len(an['urls'])} URLs.")
+            st.caption(f"⏹️ Análisis detenido en {an['i']}/{len(an['urls'])} URLs.")
 
     analizando = bool(an and an["running"])
 
@@ -447,7 +441,7 @@ with tab_analisis:
         resumen = st.session_state.get("envio_resumen")
         if resumen is not None:
             if resumen["registradas"] == 0 and resumen["enviadas"] == 0:
-                st.info("No había URLs nuevas que enviar (ya estaban en proceso).")
+                st.caption("No había URLs nuevas que enviar (ya estaban en proceso).")
             else:
                 msg = f"📤 {resumen['enviadas']} URLs enviadas a indexar a Google hoy."
                 if resumen["en_proceso"]:
@@ -477,7 +471,7 @@ with tab_analisis:
             )
             st.rerun()
     elif not analizando:
-        st.info("Selecciona un cliente y pulsa **Analizar** para empezar.")
+        st.caption("Selecciona un cliente y pulsa **Analizar** para empezar.")
 
 # ======================================================== TAB INDEXACIONES ===
 with tab_cola:
@@ -552,7 +546,7 @@ with tab_cola:
         )
         st.dataframe(idf, use_container_width=True, hide_index=True)
     else:
-        st.info("Nada en proceso todavía. Envía no indexadas desde la pestaña Análisis.")
+        st.caption("Nada en proceso todavía. Envía no indexadas desde la pestaña Análisis.")
 
     with st.expander("ℹ️ ¿Cómo se envían solas cada día?"):
         st.markdown(
@@ -564,11 +558,11 @@ with tab_cola:
 # ============================================================ TAB HISTÓRICO ==
 with tab_hist:
     if not site_url:
-        st.info("Selecciona un cliente para ver su evolución.")
+        st.caption("Selecciona un cliente para ver su evolución.")
     else:
         snaps = history.snapshots(site_url)
         if not snaps:
-            st.info("Aún no hay análisis guardados de este cliente. Analízalo primero.")
+            st.caption("Aún no hay análisis guardados de este cliente. Analízalo primero.")
         else:
             hdf = pd.DataFrame(snaps)
             hdf["Fecha"] = pd.to_datetime(hdf["ts"]).dt.strftime("%Y-%m-%d %H:%M")
