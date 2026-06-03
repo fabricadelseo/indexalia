@@ -33,8 +33,8 @@ if _LOGO.exists():
 DAILY_LIMIT = 3  # máximo de URLs a enviar por día (drip-feed)
 
 # Paleta de marca (La Fábrica del SEO)
-NARANJA = "#F26C21"   # naranja del logo
-NARANJA2 = "#FF8A3D"  # naranja claro (degradado)
+NARANJA = "#FF6A00"   # naranja intenso de marca
+NARANJA2 = "#FF8A3D"  # naranja claro
 GRIS = "#37373A"      # gris oscuro del logo
 VERDE = "#16a34a"     # semántico: indexada / OK
 ROJO = "#dc2626"      # semántico: no indexada / error
@@ -44,14 +44,14 @@ st.markdown(
     """
     <style>
       #MainMenu, footer {visibility: hidden;}
-      .block-container {padding-top: 1.4rem; max-width: 1150px;}
-      h1, h2, h3 {color: #37373A;}
+      .block-container {padding-top: 3.4rem; max-width: 1150px;}
+      h1, h2, h3 {color: #2B2B2D;}
 
-      /* Cabecera minimalista */
+      /* Cabecera */
       .appbar {display: flex; align-items: baseline; gap: .7rem;
-        padding-bottom: .5rem; border-bottom: 1px solid #ECEAE7; margin-bottom: .2rem;}
-      .appbar .logo {font-size: 1.55rem; font-weight: 800; color: #37373A; letter-spacing: -.02em;}
-      .appbar .logo .dot {color: #F26C21;}
+        padding-bottom: .55rem; border-bottom: 2px solid #FF6A00; margin-bottom: .35rem;}
+      .appbar .logo {font-size: 2.05rem; font-weight: 800; color: #2B2B2D; letter-spacing: -.02em;}
+      .appbar .logo .dot {color: #FF6A00;}
       .appbar .tag {font-size: .72rem; color: #A6A6AB; text-transform: uppercase;
         letter-spacing: .1em; margin-left: auto;}
 
@@ -67,33 +67,33 @@ st.markdown(
         border-radius: 9px !important; font-weight: 600 !important;
         padding: .55rem 1.15rem !important; transition: all .15s ease !important;
       }
-      /* Primario: naranja sólido */
+      /* Primario: naranja intenso */
       button[kind="primary"], button[kind="primaryFormSubmit"],
       button[data-testid="stBaseButton-primary"],
       button[data-testid="baseButton-primary"],
       button[data-testid="stBaseButton-primaryFormSubmit"] {
-        background: #F26C21 !important; border: 1px solid #F26C21 !important;
-        color: #fff !important; box-shadow: 0 2px 8px rgba(242,108,33,.30) !important;
+        background: #FF6A00 !important; border: 1px solid #FF6A00 !important;
+        color: #fff !important; box-shadow: 0 2px 8px rgba(255,106,0,.32) !important;
       }
       button[kind="primary"]:hover, button[kind="primaryFormSubmit"]:hover,
       button[data-testid="stBaseButton-primary"]:hover,
       button[data-testid="baseButton-primary"]:hover {
-        background: #D9531A !important; border-color: #D9531A !important;
-        box-shadow: 0 5px 14px rgba(242,108,33,.40) !important;
+        background: #E85F00 !important; border-color: #E85F00 !important;
+        box-shadow: 0 5px 14px rgba(255,106,0,.45) !important;
       }
       /* Secundario: contorno y texto naranja ya en reposo */
       button[kind="secondary"], button[kind="secondaryFormSubmit"],
       button[data-testid="stBaseButton-secondary"],
       button[data-testid="baseButton-secondary"],
       button[data-testid="stBaseButton-secondaryFormSubmit"] {
-        background: #fff !important; border: 1.5px solid #F4C8AC !important;
-        color: #C24E12 !important;
+        background: #fff !important; border: 1.5px solid #FFC299 !important;
+        color: #E85F00 !important;
       }
       button[kind="secondary"]:hover, button[kind="secondaryFormSubmit"]:hover,
       button[data-testid="stBaseButton-secondary"]:hover,
       button[data-testid="baseButton-secondary"]:hover {
-        background: #FFF5EE !important; border-color: #F26C21 !important;
-        color: #D9531A !important;
+        background: #FFF3EA !important; border-color: #FF6A00 !important;
+        color: #E85F00 !important;
       }
       /* Deshabilitado (gana al resto) */
       .stButton > button:disabled, .stButton > button:disabled:hover {
@@ -102,7 +102,7 @@ st.markdown(
       }
 
       button[data-baseweb="tab"] {font-size: .98rem; font-weight: 600;}
-      a, a:visited {color: #D9531A;}
+      a, a:visited {color: #E85F00;}
     </style>
     """,
     unsafe_allow_html=True,
