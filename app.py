@@ -26,7 +26,7 @@ st.set_page_config(
 _LOGO = Path(__file__).resolve().parent / "assets" / "logo.png"
 if _LOGO.exists():
     try:
-        st.logo(str(_LOGO), link="https://indexalia.es")
+        st.logo(str(_LOGO))
     except Exception:
         pass
 
