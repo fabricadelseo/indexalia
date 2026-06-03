@@ -33,6 +33,11 @@ def _build_service():
     return build("searchconsole", "v1", credentials=creds, cache_discovery=False)
 
 
+def make_service():
+    """Servicio reutilizable (para analizar por tandas sin reconstruirlo)."""
+    return _build_service()
+
+
 def list_sites() -> list[dict]:
     """Devuelve las propiedades a las que la cuenta de servicio tiene acceso.
 

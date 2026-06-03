@@ -307,55 +307,81 @@ with tab_analisis:
         "2-3/día).",
     )
 
+    BATCH = 10  # URLs por tanda (entre tandas se puede pulsar Parar)
+
+    # --- Arranque del análisis: lee el sitemap y prepara el estado por tandas ---
     if analizar:
         with st.spinner("Leyendo sitemap…"):
             urls, log = sitemap.fetch_urls(domain, max_urls=max_urls)
-        with st.expander("Log del sitemap", expanded=False):
-            for line in log:
-                st.write(line)
-
         if urls:
-            st.write(f"Analizando indexación de **{len(urls)}** URLs en Google…")
-            bar = st.progress(0.0)
-            status = st.empty()
+            st.session_state.results = None
+            st.session_state.an = {
+                "running": True,
+                "site_url": site_url,
+                "urls": urls,
+                "i": 0,
+                "rows": [],
+                "auto": auto_enviar,
+                "finalized": False,
+            }
+            st.rerun()
+        else:
+            st.warning("No se encontraron URLs en el sitemap de este cliente.")
+            for line in log:
+                st.caption(line)
 
-            def _progress(i, total):
-                bar.progress(i / total)
-                status.caption(f"{i}/{total}")
+    an = st.session_state.get("an")
 
-            results = gsc.inspect_many(site_url, urls, pause=0.3, progress=_progress)
-            st.session_state.results = [
-                {
-                    "URL": r.url,
-                    "Indexada": "✅" if r.indexed else "❌",
-                    "Estado Google": r.coverage_state,
-                    "_indexed": r.indexed,
-                    "_error": r.error or "",
-                }
-                for r in results
-            ]
-            st.session_state.cambios = history.add_snapshot(
-                site_url, [{"url": r.url, "indexed": r.indexed} for r in results]
-            )
-            bar.empty()
-            status.empty()
+    # --- Análisis en curso: barra de progreso + botón Parar + tanda ---
+    if an and an["running"]:
+        total = len(an["urls"])
+        st.progress(an["i"] / total, text=f"Analizando… {an['i']}/{total}")
+        if st.button("⏹️ Parar análisis", type="secondary"):
+            an["running"] = False
+            st.rerun()
 
-            # Envío a indexar en el mismo clic (con goteo de fondo).
-            if auto_enviar:
-                no_idx = [r.url for r in results if not r.indexed]
-                registradas = storage.add_urls(no_idx, site_url)
-                restante = max(0, daily_limit - storage.count_sent_today())
-                enviadas, errores = enviar_a_indexar(restante)
-                st.session_state.envio_resumen = {
-                    "registradas": registradas,
-                    "enviadas": enviadas,
-                    "errores": errores,
-                    "en_proceso": len(storage.pending()),
-                }
-            else:
-                st.session_state.envio_resumen = None
+        # Procesa una tanda y vuelve a ejecutar (deja hueco para pulsar Parar).
+        svc = gsc.make_service()
+        for url in an["urls"][an["i"]:an["i"] + BATCH]:
+            r = gsc.inspect_url(an["site_url"], url, service=svc)
+            an["rows"].append({
+                "URL": r.url,
+                "Indexada": "✅" if r.indexed else "❌",
+                "Estado Google": r.coverage_state,
+                "_indexed": r.indexed,
+            })
+            an["i"] += 1
+        if an["i"] >= total:
+            an["running"] = False
+        st.rerun()
 
-    if st.session_state.results:
+    # --- Fin (terminado o parado): vuelca resultados, guarda histórico y envía ---
+    if an and not an["running"] and not an["finalized"]:
+        an["finalized"] = True
+        rows = an["rows"]
+        st.session_state.results = rows
+        st.session_state.cambios = history.add_snapshot(
+            an["site_url"], [{"url": r["URL"], "indexed": r["_indexed"]} for r in rows]
+        )
+        if an["auto"] and rows:
+            no_idx = [r["URL"] for r in rows if not r["_indexed"]]
+            registradas = storage.add_urls(no_idx, an["site_url"])
+            restante = max(0, daily_limit - storage.count_sent_today())
+            enviadas, errores = enviar_a_indexar(restante)
+            st.session_state.envio_resumen = {
+                "registradas": registradas,
+                "enviadas": enviadas,
+                "errores": errores,
+                "en_proceso": len(storage.pending()),
+            }
+        else:
+            st.session_state.envio_resumen = None
+        if an["i"] < len(an["urls"]):
+            st.info(f"⏹️ Análisis detenido en {an['i']}/{len(an['urls'])} URLs.")
+
+    analizando = bool(an and an["running"])
+
+    if st.session_state.results and not analizando:
         df = pd.DataFrame(st.session_state.results)
         total = len(df)
         indexadas = int(df["_indexed"].sum())
@@ -426,7 +452,7 @@ with tab_analisis:
                 "para los próximos días."
             )
             st.rerun()
-    else:
+    elif not analizando:
         st.info("Selecciona un cliente y pulsa **Analizar** para empezar.")
 
 # ======================================================== TAB INDEXACIONES ===
