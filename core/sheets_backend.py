@@ -84,7 +84,8 @@ def all_items() -> list[dict]:
 def add_urls(urls: list[str], site_url: str) -> int:
     svc = _svc()
     _ensure_header(svc)
-    existing = {it["url"] for it in all_items() if it["status"] == "pending"}
+    # Evita duplicar URLs ya en proceso o ya enviadas (no re-encolar lo enviado).
+    existing = {it["url"] for it in all_items() if it["status"] in ("pending", "sent")}
     new_rows = []
     for url in urls:
         if url in existing:

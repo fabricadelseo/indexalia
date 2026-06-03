@@ -42,7 +42,8 @@ def all_items() -> list[dict]:
 def add_urls(urls: list[str], site_url: str) -> int:
     """Añade URLs a la cola evitando duplicados aún pendientes. Devuelve cuántas se añadieron."""
     items = _load()
-    existing = {it["url"] for it in items if it["status"] == "pending"}
+    # Evita duplicar URLs ya en proceso o ya enviadas (no re-encolar lo enviado).
+    existing = {it["url"] for it in items if it["status"] in ("pending", "sent")}
     added = 0
     for url in urls:
         if url in existing:
