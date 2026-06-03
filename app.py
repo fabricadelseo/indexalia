@@ -9,54 +9,72 @@ from __future__ import annotations
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
+from pathlib import Path
 
 from core import (
     access, auth, clients, gsc, history, indexing, indexnow, settings, sitemap, storage,
 )
 
 st.set_page_config(
-    page_title="Indexalia",
+    page_title="Indexalia · La Fábrica del SEO",
     page_icon="🔎",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
+# Logo de marca (si existe assets/logo.png se muestra arriba de la barra lateral).
+_LOGO = Path(__file__).resolve().parent / "assets" / "logo.png"
+if _LOGO.exists():
+    try:
+        st.logo(str(_LOGO), link="https://indexalia.es")
+    except Exception:
+        pass
+
 DAILY_LIMIT = 3  # máximo de URLs a enviar por día (drip-feed)
 
-# Colores de marca
-AZUL = "#2563eb"
-VERDE = "#16a34a"
-ROJO = "#dc2626"
+# Paleta de marca (La Fábrica del SEO)
+NARANJA = "#F26C21"   # naranja del logo
+NARANJA2 = "#FF8A3D"  # naranja claro (degradado)
+GRIS = "#37373A"      # gris oscuro del logo
+VERDE = "#16a34a"     # semántico: indexada / OK
+ROJO = "#dc2626"      # semántico: no indexada / error
 
 # ---------------------------------------------------------------- estilos ----
 st.markdown(
     """
     <style>
       #MainMenu, footer {visibility: hidden;}
-      .block-container {padding-top: 1.5rem;}
+      .block-container {padding-top: 1.2rem;}
+
+      /* Títulos en gris de marca */
+      h1, h2, h3 {color: #37373A;}
 
       .hero {
-        background: linear-gradient(135deg, #2563eb 0%, #7c3aed 100%);
-        padding: 1.5rem 2rem; border-radius: 18px; color: #fff;
-        margin-bottom: 1.4rem; box-shadow: 0 8px 24px rgba(37,99,235,.25);
+        background: linear-gradient(120deg, #F26C21 0%, #FF8A3D 58%, #FFA45F 100%);
+        padding: 1.6rem 2rem; border-radius: 18px; color: #fff;
+        margin-bottom: 1.4rem; box-shadow: 0 10px 30px rgba(242,108,33,.28);
       }
-      .hero h1 {margin: 0; font-size: 1.9rem; font-weight: 700;}
-      .hero p  {margin: .35rem 0 0; opacity: .92; font-size: 1rem;}
-      .hero .brand {font-size: .8rem; opacity: .75; letter-spacing: .03em;
-        text-transform: uppercase; margin-top: .5rem;}
+      .hero h1 {margin: 0; font-size: 2rem; font-weight: 800; letter-spacing: -.01em; color:#fff;}
+      .hero p  {margin: .4rem 0 0; opacity: .96; font-size: 1.02rem;}
+      .hero .brand {font-size: .76rem; opacity: .92; letter-spacing: .09em;
+        text-transform: uppercase; margin-top: .6rem; font-weight: 600;}
 
-      /* Tarjetas de métricas */
+      /* Tarjetas de métricas con acento naranja */
       div[data-testid="stMetric"] {
-        background: #fff; border: 1px solid #e7e9ee; border-radius: 14px;
-        padding: 1rem 1.2rem; box-shadow: 0 1px 3px rgba(16,24,40,.06);
+        background: #fff; border: 1px solid #ecebe9; border-top: 3px solid #F26C21;
+        border-radius: 14px; padding: 1rem 1.2rem; box-shadow: 0 1px 3px rgba(16,24,40,.06);
       }
-      div[data-testid="stMetricLabel"] p {font-weight: 600; color: #667085;}
+      div[data-testid="stMetricLabel"] p {font-weight: 600; color: #6b6b70;}
 
       /* Botones */
       .stButton > button {border-radius: 10px; font-weight: 600;}
+      .stButton > button[kind="primary"] {box-shadow: 0 4px 12px rgba(242,108,33,.30);}
 
-      /* Pestañas más grandes */
+      /* Pestañas */
       button[data-baseweb="tab"] {font-size: 1rem; font-weight: 600;}
+
+      /* Enlaces en naranja de marca */
+      a, a:visited {color: #D9531A;}
     </style>
     """,
     unsafe_allow_html=True,
