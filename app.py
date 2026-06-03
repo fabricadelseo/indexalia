@@ -62,8 +62,37 @@ st.markdown(
       }
       div[data-testid="stMetricLabel"] p {font-weight: 600; color: #8a8a8f; font-size: .82rem;}
 
-      /* Botones y pestañas: el naranja solo como acento */
-      .stButton > button {border-radius: 9px; font-weight: 600;}
+      /* --- Botones --- */
+      .stButton > button, .stFormSubmitButton > button {
+        border-radius: 9px; font-weight: 600; padding: .5rem 1.1rem;
+        transition: all .15s ease; border: 1px solid #E2E0DD;
+      }
+      /* Primario: naranja sólido */
+      .stButton > button[kind="primary"],
+      .stFormSubmitButton > button[kind="primaryFormSubmit"] {
+        background: #F26C21; border-color: #F26C21; color: #fff;
+        box-shadow: 0 2px 6px rgba(242,108,33,.25);
+      }
+      .stButton > button[kind="primary"]:hover,
+      .stFormSubmitButton > button[kind="primaryFormSubmit"]:hover {
+        background: #D9531A; border-color: #D9531A; color: #fff;
+        box-shadow: 0 4px 12px rgba(242,108,33,.35);
+      }
+      /* Secundario: contorno sobrio que se ilumina en naranja */
+      .stButton > button[kind="secondary"],
+      .stFormSubmitButton > button[kind="secondaryFormSubmit"] {
+        background: #fff; color: #37373A;
+      }
+      .stButton > button[kind="secondary"]:hover,
+      .stFormSubmitButton > button[kind="secondaryFormSubmit"]:hover {
+        border-color: #F26C21; color: #D9531A; background: #fff;
+      }
+      /* Deshabilitado */
+      .stButton > button:disabled, .stButton > button:disabled:hover {
+        background: #F3F2F0; border-color: #ECEAE7; color: #BBB9B6;
+        box-shadow: none; cursor: not-allowed;
+      }
+
       button[data-baseweb="tab"] {font-size: .98rem; font-weight: 600;}
       a, a:visited {color: #D9531A;}
     </style>
