@@ -1,0 +1,18 @@
+# Credenciales — NUNCA subir
+service_account.json
+client_secret.json
+token.json
+.streamlit/secrets.toml
+
+# Datos de clientes (no subir a GitHub; en la nube se usan Sheets/secrets)
+data/queue.json
+data/clients.json
+data/history.json
+data/settings.json
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.env
