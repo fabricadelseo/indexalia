@@ -62,35 +62,43 @@ st.markdown(
       }
       div[data-testid="stMetricLabel"] p {font-weight: 600; color: #8a8a8f; font-size: .82rem;}
 
-      /* --- Botones --- */
+      /* --- Botones (base) --- */
       .stButton > button, .stFormSubmitButton > button {
-        border-radius: 9px; font-weight: 600; padding: .5rem 1.1rem;
-        transition: all .15s ease; border: 1px solid #E2E0DD;
+        border-radius: 9px !important; font-weight: 600 !important;
+        padding: .55rem 1.15rem !important; transition: all .15s ease !important;
       }
       /* Primario: naranja sólido */
-      .stButton > button[kind="primary"],
-      .stFormSubmitButton > button[kind="primaryFormSubmit"] {
-        background: #F26C21; border-color: #F26C21; color: #fff;
-        box-shadow: 0 2px 6px rgba(242,108,33,.25);
+      button[kind="primary"], button[kind="primaryFormSubmit"],
+      button[data-testid="stBaseButton-primary"],
+      button[data-testid="baseButton-primary"],
+      button[data-testid="stBaseButton-primaryFormSubmit"] {
+        background: #F26C21 !important; border: 1px solid #F26C21 !important;
+        color: #fff !important; box-shadow: 0 2px 8px rgba(242,108,33,.30) !important;
       }
-      .stButton > button[kind="primary"]:hover,
-      .stFormSubmitButton > button[kind="primaryFormSubmit"]:hover {
-        background: #D9531A; border-color: #D9531A; color: #fff;
-        box-shadow: 0 4px 12px rgba(242,108,33,.35);
+      button[kind="primary"]:hover, button[kind="primaryFormSubmit"]:hover,
+      button[data-testid="stBaseButton-primary"]:hover,
+      button[data-testid="baseButton-primary"]:hover {
+        background: #D9531A !important; border-color: #D9531A !important;
+        box-shadow: 0 5px 14px rgba(242,108,33,.40) !important;
       }
-      /* Secundario: contorno sobrio que se ilumina en naranja */
-      .stButton > button[kind="secondary"],
-      .stFormSubmitButton > button[kind="secondaryFormSubmit"] {
-        background: #fff; color: #37373A;
+      /* Secundario: contorno y texto naranja ya en reposo */
+      button[kind="secondary"], button[kind="secondaryFormSubmit"],
+      button[data-testid="stBaseButton-secondary"],
+      button[data-testid="baseButton-secondary"],
+      button[data-testid="stBaseButton-secondaryFormSubmit"] {
+        background: #fff !important; border: 1.5px solid #F4C8AC !important;
+        color: #C24E12 !important;
       }
-      .stButton > button[kind="secondary"]:hover,
-      .stFormSubmitButton > button[kind="secondaryFormSubmit"]:hover {
-        border-color: #F26C21; color: #D9531A; background: #fff;
+      button[kind="secondary"]:hover, button[kind="secondaryFormSubmit"]:hover,
+      button[data-testid="stBaseButton-secondary"]:hover,
+      button[data-testid="baseButton-secondary"]:hover {
+        background: #FFF5EE !important; border-color: #F26C21 !important;
+        color: #D9531A !important;
       }
-      /* Deshabilitado */
+      /* Deshabilitado (gana al resto) */
       .stButton > button:disabled, .stButton > button:disabled:hover {
-        background: #F3F2F0; border-color: #ECEAE7; color: #BBB9B6;
-        box-shadow: none; cursor: not-allowed;
+        background: #F3F2F0 !important; border: 1px solid #ECEAE7 !important;
+        color: #BBB9B6 !important; box-shadow: none !important; cursor: not-allowed;
       }
 
       button[data-baseweb="tab"] {font-size: .98rem; font-weight: 600;}
