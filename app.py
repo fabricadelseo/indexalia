@@ -101,6 +101,21 @@ st.markdown(
         color: #BBB9B6 !important; box-shadow: none !important; cursor: not-allowed;
       }
 
+      /* --- Tour por pasos --- */
+      .tour {display: flex; align-items: center; gap: .5rem; flex-wrap: wrap;
+        margin: .2rem 0 .15rem;}
+      .tour .step {display: flex; align-items: center; gap: .45rem;
+        font-size: .9rem; font-weight: 600; color: #A6A6AB;}
+      .tour .step .num {display: inline-flex; align-items: center; justify-content: center;
+        width: 1.5rem; height: 1.5rem; border-radius: 50%; background: #ECEAE7;
+        color: #8a8a8f; font-size: .8rem;}
+      .tour .step.active {color: #2B2B2D;}
+      .tour .step.active .num {background: #FF6A00; color: #fff;}
+      .tour .step.done {color: #2B2B2D;}
+      .tour .step.done .num {background: #FFE0CC; color: #E85F00;}
+      .tour .sep {flex: 0 0 26px; height: 2px; background: #ECEAE7; border-radius: 2px;}
+      .tourhint {font-size: .92rem; color: #E85F00; font-weight: 600; margin: .15rem 0 .7rem;}
+
       button[data-baseweb="tab"] {font-size: .98rem; font-weight: 600;}
       a, a:visited {color: #E85F00;}
     </style>
@@ -184,6 +199,34 @@ def donut_estados(en_proceso: int, enviadas: int, errores: int) -> go.Figure:
         ],
     )
     return fig
+
+
+def render_tour(paso: int) -> None:
+    """Indicador de pasos guiado (1 Cargar · 2 Elegir · 3 Analizar)."""
+    pasos = ["Cargar clientes", "Elegir cliente", "Analizar y enviar"]
+    pistas = {
+        1: '👉 Pulsa **Cargar clientes** (arriba a la derecha) para traer tus '
+           "propiedades de Search Console.",
+        2: "👉 Elige un cliente en el desplegable.",
+        3: '👉 Pulsa **Analizar y enviar a indexar**.',
+    }
+    bloques = []
+    for i, nombre in enumerate(pasos, start=1):
+        estado = "done" if i < paso else ("active" if i == paso else "todo")
+        num = "✓" if i < paso else str(i)
+        bloques.append(
+            f'<div class="step {estado}"><span class="num">{num}</span> {nombre}</div>'
+        )
+        if i < len(pasos):
+            bloques.append('<div class="sep"></div>')
+    st.markdown(f'<div class="tour">{"".join(bloques)}</div>', unsafe_allow_html=True)
+    if paso in pistas:
+        st.markdown(f'<div class="tourhint">{pistas[paso]}</div>', unsafe_allow_html=True)
+    else:
+        st.markdown(
+            '<div class="tourhint">✅ Análisis hecho. Revisa los resultados abajo.</div>',
+            unsafe_allow_html=True,
+        )
 
 
 def enviar_a_indexar(limite_restante: int):
@@ -304,7 +347,7 @@ perms = {}
 
 with sel_cols[0]:
     if st.session_state.sites is None:
-        st.caption("Pulsa **Cargar clientes** para traer tus propiedades de Search Console.")
+        st.empty()
     elif not st.session_state.sites:
         st.warning(
             "No hay propiedades accesibles. Añade el email de la cuenta de "
@@ -336,6 +379,17 @@ if site_url:
             "Con este permiso podrás comprobar indexación, pero para **solicitar "
             "indexación** la cuenta debe ser **Propietario** de la propiedad."
         )
+
+# --- Tour guiado: marca el paso actual según el estado ---
+if st.session_state.sites is None:
+    _paso = 1
+elif not site_url:
+    _paso = 2
+elif not st.session_state.results:
+    _paso = 3
+else:
+    _paso = 4
+render_tour(_paso)
 
 st.write("")
 tab_analisis, tab_cola, tab_hist = st.tabs(
@@ -508,7 +562,7 @@ with tab_analisis:
             )
             st.rerun()
     elif not analizando:
-        st.caption("Selecciona un cliente y pulsa **Analizar** para empezar.")
+        st.empty()
 
 # ======================================================== TAB INDEXACIONES ===
 with tab_cola:
