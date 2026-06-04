@@ -633,7 +633,15 @@ with tab_analisis:
 
 # ======================================================== TAB INDEXACIONES ===
 with tab_cola:
-    items = storage.all_items()
+    try:
+        items = storage.all_items()
+    except Exception as e:  # noqa: BLE001  (p. ej. cuota de Sheets puntual)
+        st.warning(
+            "No se pudo leer la cola ahora mismo (puede ser un pico de la API de "
+            "Google Sheets). Espera unos segundos y recarga."
+        )
+        st.caption(f"Detalle: {e}")
+        st.stop()
     sent_today = storage.count_sent_today()
     pend = [it for it in items if it["status"] == "pending"]
     enviadas_total = sum(1 for it in items if it["status"] == "sent")

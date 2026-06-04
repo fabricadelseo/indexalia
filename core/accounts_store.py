@@ -9,12 +9,21 @@ Se usa la credencial principal (la dueña de la hoja) para leer/escribir.
 
 from __future__ import annotations
 
+import time
+
 from googleapiclient.discovery import build
 
 from . import settings
 
 _TAB = "accounts"
 _HEADER = ["email", "token_json"]
+
+_CACHE = {"data": None, "ts": 0.0}
+_TTL = 30.0
+
+
+def _invalidate() -> None:
+    _CACHE["data"] = None
 
 
 def is_enabled() -> bool:
@@ -45,9 +54,12 @@ def _ensure_tab(svc) -> None:
 
 
 def list_tokens(creds) -> list[tuple[str, str]]:
-    """Devuelve [(email, token_json)] guardados en la hoja."""
+    """Devuelve [(email, token_json)] guardados en la hoja (cacheado)."""
     if not is_enabled():
         return []
+    now = time.monotonic()
+    if _CACHE["data"] is not None and (now - _CACHE["ts"]) < _TTL:
+        return _CACHE["data"]
     try:
         svc = _svc(creds)
         _ensure_tab(svc)
@@ -58,9 +70,11 @@ def list_tokens(creds) -> list[tuple[str, str]]:
         for row in resp.get("values", []):
             if len(row) >= 2 and row[0] and row[1]:
                 out.append((row[0], row[1]))
+        _CACHE["data"] = out
+        _CACHE["ts"] = now
         return out
     except Exception:
-        return []
+        return _CACHE["data"] or []
 
 
 def save_token(creds, email: str, token_json: str) -> None:
@@ -76,12 +90,14 @@ def save_token(creds, email: str, token_json: str) -> None:
                 spreadsheetId=_sheet_id(), range=f"{_TAB}!A{i + 2}:B{i + 2}",
                 valueInputOption="RAW", body={"values": [[email, token_json]]},
             ).execute()
+            _invalidate()
             return
     svc.spreadsheets().values().append(
         spreadsheetId=_sheet_id(), range=f"{_TAB}!A2:B",
         valueInputOption="RAW", insertDataOption="INSERT_ROWS",
         body={"values": [[email, token_json]]},
     ).execute()
+    _invalidate()
 
 
 def delete(creds, email: str) -> None:
@@ -98,3 +114,4 @@ def delete(creds, email: str) -> None:
             spreadsheetId=_sheet_id(), range=f"{_TAB}!A2:B",
             valueInputOption="RAW", body={"values": keep},
         ).execute()
+    _invalidate()

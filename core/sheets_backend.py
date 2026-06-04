@@ -16,6 +16,7 @@ Configuración:
 
 from __future__ import annotations
 
+import time
 from datetime import datetime, timezone
 
 from googleapiclient.discovery import build
@@ -59,6 +60,15 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
+# Caché corta para no exceder la cuota de lecturas de Sheets (~60/min).
+_CACHE = {"rows": None, "ts": 0.0}
+_TTL = 30.0
+
+
+def _invalidate() -> None:
+    _CACHE["rows"] = None
+
+
 def _ensure_header(svc) -> None:
     """Crea la cabecera si la hoja está vacía."""
     rng = f"{_TAB}!A1:F1"
@@ -72,7 +82,10 @@ def _ensure_header(svc) -> None:
         ).execute()
 
 
-def _rows() -> list[list[str]]:
+def _rows(force: bool = False) -> list[list[str]]:
+    now = time.monotonic()
+    if not force and _CACHE["rows"] is not None and (now - _CACHE["ts"]) < _TTL:
+        return _CACHE["rows"]
     svc = _svc()
     _ensure_header(svc)
     resp = (
@@ -81,7 +94,10 @@ def _rows() -> list[list[str]]:
         .get(spreadsheetId=_sheet_id(), range=f"{_TAB}!A2:F")
         .execute()
     )
-    return resp.get("values", [])
+    data = resp.get("values", [])
+    _CACHE["rows"] = data
+    _CACHE["ts"] = now
+    return data
 
 
 def _to_dict(row: list[str]) -> dict:
@@ -142,6 +158,7 @@ def add_urls(urls: list[str], site_url: str, retry_days: int | None = None) -> i
             insertDataOption="INSERT_ROWS",
             body={"values": new_rows},
         ).execute()
+    _invalidate()
     return added
 
 
@@ -167,6 +184,7 @@ def take_batch(n: int, site_url: str | None = None) -> list[dict]:
 def mark(url: str, status: str, detail: str = "") -> None:
     svc = _svc()
     rows = _rows()
+    ahora = _now()
     for i, row in enumerate(rows):
         d = _to_dict(row)
         if d["url"] == url and d["status"] == "pending":
@@ -175,8 +193,10 @@ def mark(url: str, status: str, detail: str = "") -> None:
                 spreadsheetId=_sheet_id(),
                 range=f"{_TAB}!C{row_num}:F{row_num}",
                 valueInputOption="RAW",
-                body={"values": [[status, d["added_at"], _now(), detail]]},
+                body={"values": [[status, d["added_at"], ahora, detail]]},
             ).execute()
+            # Actualiza la caché en memoria (rows es el objeto cacheado).
+            rows[i] = [d["url"], d["site_url"], status, d["added_at"], ahora, detail]
             return
 
 
@@ -194,4 +214,5 @@ def remove(url: str) -> None:
                 valueInputOption="RAW",
                 body={"values": [["removed"]]},
             ).execute()
+            _invalidate()
             return

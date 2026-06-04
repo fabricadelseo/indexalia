@@ -155,8 +155,22 @@ def _base_accounts() -> list[dict]:
     return out
 
 
+_ACC_CACHE = {"data": None, "ts": 0.0}
+_ACC_TTL = 30.0
+
+
+def _invalidate_accounts() -> None:
+    _ACC_CACHE["data"] = None
+
+
 def accounts() -> list[dict]:
     """Todas las cuentas: base (ficheros/secrets) + las guardadas en la hoja."""
+    import time
+
+    now = time.monotonic()
+    if _ACC_CACHE["data"] is not None and (now - _ACC_CACHE["ts"]) < _ACC_TTL:
+        return _ACC_CACHE["data"]
+
     out = _base_accounts()
     seen = {a["name"] for a in out}
 
@@ -175,6 +189,9 @@ def accounts() -> list[dict]:
                         out.append({"name": email, "creds": creds})
         except Exception:
             pass
+
+    _ACC_CACHE["data"] = out
+    _ACC_CACHE["ts"] = now
     return out
 
 
@@ -197,6 +214,7 @@ def oauth_login():
     """Login de la cuenta principal -> guarda token.json (lo usa login.py)."""
     creds = _run_flow()
     _TOKEN.write_text(creds.to_json(), encoding="utf-8")
+    _invalidate_accounts()
     return creds
 
 
@@ -206,17 +224,29 @@ def add_account() -> str:
     email = _email_of(creds) or f"cuenta-{len(accounts()) + 1}"
     _TOKENS_DIR.mkdir(exist_ok=True)
     (_TOKENS_DIR / f"{email}.json").write_text(creds.to_json(), encoding="utf-8")
+    _invalidate_accounts()
     return email
 
 
 def remove_account(name: str) -> None:
-    """Quita una cuenta. 'principal' borra token.json; el resto su fichero."""
+    """Quita una cuenta: fichero local o, si está en la hoja, la borra de ahí."""
+    _invalidate_accounts()
     if name == "principal" and _TOKEN.exists():
         _TOKEN.unlink()
         return
     f = _TOKENS_DIR / f"{name}.json"
     if f.exists():
         f.unlink()
+        return
+    # Cuenta guardada en la hoja (añadida desde la nube).
+    try:
+        from . import accounts_store
+
+        base = _base_accounts()
+        if base and accounts_store.is_enabled():
+            accounts_store.delete(base[0]["creds"], name)
+    except Exception:
+        pass
 
 
 def oauth_logout() -> None:
@@ -292,6 +322,7 @@ def web_exchange(code: str) -> str:
     if not base:
         raise RuntimeError("No hay cuenta principal para guardar la nueva cuenta.")
     accounts_store.save_token(base[0]["creds"], email, creds.to_json())
+    _invalidate_accounts()
     return email
 
 
