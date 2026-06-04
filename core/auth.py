@@ -21,6 +21,9 @@ from pathlib import Path
 
 from google.oauth2 import service_account
 
+# Evita errores de "scope cambiado" al intercambiar el code (Google añade openid).
+os.environ.setdefault("OAUTHLIB_RELAX_TOKEN_SCOPE", "1")
+
 SCOPES = [
     "https://www.googleapis.com/auth/webmasters.readonly",  # listar + inspeccionar
     "https://www.googleapis.com/auth/indexing",             # solicitar indexación
@@ -120,19 +123,17 @@ def _email_of(creds) -> str | None:
 
 
 # ------------------------------------------------------- cuentas (público) ---
-def accounts() -> list[dict]:
-    """Lista de cuentas conectadas: [{'name': email, 'creds': Credentials}]."""
+def _base_accounts() -> list[dict]:
+    """Cuentas desde ficheros / env / st.secrets (sin tocar la hoja)."""
     out: list[dict] = []
     seen: set[str] = set()
 
     fuentes: list[tuple[str, str, object]] = []
-    # Ficheros locales
     if _TOKEN.exists():
         fuentes.append(("principal", "file", _TOKEN))
     if _TOKENS_DIR.exists():
         for p in sorted(_TOKENS_DIR.glob("*.json")):
             fuentes.append((p.stem, "file", p))
-    # Nube
     for label, raw in _env_oauth_tokens() + _streamlit_oauth_tokens():
         fuentes.append((label, "raw", raw))
 
@@ -140,15 +141,34 @@ def accounts() -> list[dict]:
         creds = _creds_from_file(val) if kind == "file" else _creds_from_raw(val)
         if not creds:
             continue
-        # Si el nombre ya es un email (fichero tokens/<email>.json) lo usamos;
-        # si es genérico (principal/env/secret) intentamos resolver el email.
-        name = label
-        if "@" not in label:
-            name = _email_of(creds) or label
+        name = label if "@" in label else (_email_of(creds) or label)
         if name in seen:
             continue
         seen.add(name)
         out.append({"name": name, "creds": creds})
+    return out
+
+
+def accounts() -> list[dict]:
+    """Todas las cuentas: base (ficheros/secrets) + las guardadas en la hoja."""
+    out = _base_accounts()
+    seen = {a["name"] for a in out}
+
+    # Cuentas adicionales guardadas en la hoja (conectadas desde la app web).
+    if out:
+        try:
+            from . import accounts_store
+
+            if accounts_store.is_enabled():
+                for email, raw in accounts_store.list_tokens(out[0]["creds"]):
+                    if email in seen:
+                        continue
+                    creds = _creds_from_raw(raw)
+                    if creds:
+                        seen.add(email)
+                        out.append({"name": email, "creds": creds})
+        except Exception:
+            pass
     return out
 
 
@@ -202,6 +222,69 @@ def oauth_logout() -> None:
             p.unlink()
 
 
+# ----------------------------------------------- OAuth WEB (añadir en nube) ---
+def _web_cfg() -> dict | None:
+    """Config del cliente OAuth Web desde st.secrets['oauth_web']."""
+    try:
+        import streamlit as st
+
+        if "oauth_web" in st.secrets:
+            w = st.secrets["oauth_web"]
+            return {
+                "client_id": w["client_id"],
+                "client_secret": w["client_secret"],
+                "redirect_uri": w["redirect_uri"],
+            }
+    except Exception:
+        return None
+    return None
+
+
+def web_oauth_available() -> bool:
+    return _web_cfg() is not None
+
+
+def _web_flow(cfg):
+    from google_auth_oauthlib.flow import Flow
+
+    client_config = {
+        "web": {
+            "client_id": cfg["client_id"],
+            "client_secret": cfg["client_secret"],
+            "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+            "token_uri": "https://oauth2.googleapis.com/token",
+            "redirect_uris": [cfg["redirect_uri"]],
+        }
+    }
+    flow = Flow.from_client_config(client_config, scopes=SCOPES)
+    flow.redirect_uri = cfg["redirect_uri"]
+    return flow
+
+
+def web_auth_url() -> str:
+    """URL a la que enviar al usuario para autorizar una cuenta nueva."""
+    flow = _web_flow(_web_cfg())
+    url, _ = flow.authorization_url(
+        access_type="offline", prompt="consent", include_granted_scopes="true"
+    )
+    return url
+
+
+def web_exchange(code: str) -> str:
+    """Intercambia el 'code' del redirect por un token y lo guarda en la hoja."""
+    from . import accounts_store
+
+    flow = _web_flow(_web_cfg())
+    flow.fetch_token(code=code)
+    creds = flow.credentials
+    email = _email_of(creds) or "cuenta-web"
+    base = _base_accounts()
+    if not base:
+        raise RuntimeError("No hay cuenta principal para guardar la nueva cuenta.")
+    accounts_store.save_token(base[0]["creds"], email, creds.to_json())
+    return email
+
+
 # ----------------------------------------------------- cuenta de servicio ----
 def _service_account_creds():
     raw = os.environ.get("GCP_SA_JSON")
@@ -239,7 +322,7 @@ def get_credentials():
     Lo usan Sheets y procesos que no enrutan por cuenta. Para inspección/
     indexación por dominio se usan las credenciales de cada cuenta (creds_map).
     """
-    accs = accounts()
+    accs = _base_accounts()  # sin hoja, para evitar recursión con accounts_store
     if accs:
         return accs[0]["creds"]
     sa = _service_account_creds()

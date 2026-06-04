@@ -126,6 +126,17 @@ st.markdown(
 # Control de acceso (login de equipo en la nube). En local, sin secrets, pasa directo.
 usuario_actual = access.require_login()
 
+# Conexión de cuenta nueva vía OAuth web: Google redirige aquí con ?code=...
+if "code" in st.query_params and auth.web_oauth_available():
+    try:
+        _email = auth.web_exchange(st.query_params["code"])
+        st.session_state["_added_ok"] = _email
+        st.session_state.sites = None
+    except Exception as e:  # noqa: BLE001
+        st.session_state["_added_err"] = str(e)
+    st.query_params.clear()
+    st.rerun()
+
 st.markdown(
     """
     <div class="appbar">
@@ -274,6 +285,13 @@ with st.sidebar:
 
     st.header("⚙️ Configuración")
     st.markdown("**Cuentas de Google**")
+
+    # Avisos de la conexión web recién hecha.
+    if _ok := st.session_state.pop("_added_ok", None):
+        st.success(f"✅ Cuenta conectada: {_ok}")
+    if _err := st.session_state.pop("_added_err", None):
+        st.error(f"No se pudo conectar: {_err}")
+
     cuentas = []
     if autenticado:
         try:
@@ -288,24 +306,32 @@ with st.sidebar:
     else:
         st.error("Sin cuentas conectadas.")
 
-    # Añadir cuenta (en local: abre el navegador). Requiere client_secret.json.
-    if auth.has_client_secret():
+    # Añadir cuenta:
+    #  - En la NUBE (OAuth web configurado) -> enlace de autorización de Google.
+    #  - En LOCAL (client_secret.json) -> abre el navegador (run_local_server).
+    if auth.web_oauth_available():
+        try:
+            st.link_button(
+                "➕ Añadir cuenta de Google", auth.web_auth_url(),
+                type="primary", use_container_width=True,
+            )
+            st.caption("Te lleva a Google; al volver, la cuenta queda conectada.")
+        except Exception as e:  # noqa: BLE001
+            st.caption(f"OAuth web mal configurado: {e}")
+    elif auth.has_client_secret():
         etiqueta = "🔐 Iniciar sesión con Google" if not auth.has_oauth_token() else "➕ Añadir otra cuenta de Google"
         if st.button(etiqueta, type="primary", use_container_width=True):
             with st.spinner("Abriendo el navegador para autorizar…"):
                 try:
-                    if not auth.has_oauth_token():
-                        auth.oauth_login()
-                    else:
-                        auth.add_account()
+                    auth.oauth_login() if not auth.has_oauth_token() else auth.add_account()
                     st.session_state.sites = None
                     st.rerun()
                 except Exception as e:  # noqa: BLE001
                     st.error(f"No se pudo conectar la cuenta: {e}")
     elif not autenticado:
         st.caption(
-            "Para OAuth, coloca `client_secret.json` en la carpeta del proyecto "
-            "(o usa una cuenta de servicio). Ver README."
+            "Para conectar cuentas desde la nube, configura `oauth_web` en los "
+            "Secrets (ver README)."
         )
 
     if cuentas and auth.has_oauth_token():
