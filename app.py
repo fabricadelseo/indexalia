@@ -30,7 +30,7 @@ if _LOGO.exists():
     except Exception:
         pass
 
-DAILY_LIMIT = 20  # máximo de URLs/día a Google (global, todos los dominios)
+DAILY_LIMIT = 35  # máximo de URLs/día a Google (global, todos los dominios)
 
 # Paleta de marca (La Fábrica del SEO)
 NARANJA = "#FF6A00"   # naranja intenso de marca
