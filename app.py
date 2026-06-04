@@ -30,7 +30,7 @@ if _LOGO.exists():
     except Exception:
         pass
 
-DAILY_LIMIT = 3  # máximo de URLs a enviar por día (drip-feed)
+DAILY_LIMIT = 10  # máximo de URLs/día a Google (global, todos los dominios)
 
 # Paleta de marca (La Fábrica del SEO)
 NARANJA = "#FF6A00"   # naranja intenso de marca
@@ -348,7 +348,9 @@ with st.sidebar:
 
     st.divider()
     daily_limit = st.number_input(
-        "URLs a enviar por día (Google)", min_value=1, max_value=20, value=DAILY_LIMIT
+        "URLs a enviar por día (Google)", min_value=1, max_value=200, value=DAILY_LIMIT,
+        help="Total diario sumando TODOS los dominios. La Indexing API de Google "
+        "permite hasta ~200/día por proyecto.",
     )
     retry_days = st.number_input(
         "Reintentar tras (días sin indexar)", min_value=0, max_value=90,
@@ -475,8 +477,8 @@ with tab_analisis:
         "Enviar a indexar automáticamente las no indexadas",
         value=True,
         help="Al analizar, las URLs no indexadas se envían a indexar: se mandan "
-        "las que caben hoy y el resto quedan en proceso (el cron las envía a "
-        "2-3/día).",
+        "las que caben en el cupo de hoy y el resto quedan en proceso (el cron "
+        "las envía cada día).",
     )
 
     BATCH = 10  # URLs por tanda (entre tandas se puede pulsar Parar)
@@ -603,7 +605,7 @@ with tab_analisis:
                 if resumen["en_proceso"]:
                     msg += (
                         f" Quedan **{resumen['en_proceso']}** en proceso "
-                        "(se enviarán los próximos días, 2-3/día)."
+                        "(se enviarán los próximos días según el cupo)."
                     )
                 st.success(msg)
             if resumen["errores"]:
@@ -658,7 +660,7 @@ with tab_cola:
         text=f"Cupo de envío a Google de hoy: {sent_today}/{daily_limit} (quedan {restante})",
     )
     st.caption(
-        "Las URLs **en proceso** se envían a Google poco a poco (2-3/día) "
+        "Las URLs **en proceso** se envían a Google poco a poco (según el cupo diario) "
         "automáticamente con el cron. Aquí puedes forzar el envío de hoy."
     )
 
@@ -706,7 +708,7 @@ with tab_cola:
 
     with st.expander("ℹ️ ¿Cómo se envían solas cada día?"):
         st.markdown(
-            "Las URLs en proceso se envían a Google a 2-3/día con el cron de "
+            "Las URLs en proceso se envían a Google según el cupo diario con el cron de "
             "**GitHub Actions** (`daily-index.yml` → `daily_batch.py`). Así no "
             "tienes que volver a entrar. Consulta el README para activarlo."
         )
