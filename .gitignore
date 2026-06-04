@@ -2,6 +2,7 @@
 service_account.json
 client_secret.json
 token.json
+tokens/
 .streamlit/secrets.toml
 
 # Datos de clientes (no subir a GitHub; en la nube se usan Sheets/secrets)

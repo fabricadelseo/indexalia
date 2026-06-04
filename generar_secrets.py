@@ -2,33 +2,49 @@
 
     python generar_secrets.py "clave-del-equipo"
 
-Imprime el texto listo para pegar en Streamlit Cloud -> Settings -> Secrets.
-No subas esto a ningún sitio: contiene tu token de Google.
+Incluye TODAS las cuentas de Google conectadas (token.json + tokens/*.json).
+Pega lo que imprime en Streamlit Cloud -> Settings -> Secrets.
+No lo subas a ningún sitio: contiene tus tokens.
 """
 
 import sys
 from pathlib import Path
 
-_TOKEN = Path(__file__).resolve().parent / "token.json"
+_BASE = Path(__file__).resolve().parent
+_TOKEN = _BASE / "token.json"
+_TOKENS_DIR = _BASE / "tokens"
+
+
+def _tokens() -> list[str]:
+    out = []
+    if _TOKEN.exists():
+        out.append(_TOKEN.read_text(encoding="utf-8").strip())
+    if _TOKENS_DIR.exists():
+        for p in sorted(_TOKENS_DIR.glob("*.json")):
+            out.append(p.read_text(encoding="utf-8").strip())
+    return out
 
 
 def main() -> int:
-    if not _TOKEN.exists():
-        print("ERROR: no existe token.json. Ejecuta antes: python login.py")
+    toks = _tokens()
+    if not toks:
+        print("ERROR: no hay tokens. Ejecuta antes: python login.py (y python add_cuenta.py)")
         return 1
 
     pwd = sys.argv[1] if len(sys.argv) > 1 else "CAMBIA-ESTA-CLAVE"
-    token = _TOKEN.read_text(encoding="utf-8").strip()
 
     print("\n================ COPIA DESDE AQUÍ ================\n")
     print(f'app_password = "{pwd}"')
     print()
-    print("google_oauth_token = '''")
-    print(token)
-    print("'''")
-    print()
-    print('# sheet_id = "PEGA_AQUI_EL_ID_DE_TU_HOJA"   # para la cola compartida')
-    print('# indexnow_key = "tu-key"                    # opcional (Bing/Yandex)')
+    for i, tok in enumerate(toks):
+        clave = "google_oauth_token" if i == 0 else f"google_oauth_token_{i + 1}"
+        print(f"{clave} = '''")
+        print(tok)
+        print("'''")
+        print()
+    print('# sheet_id = "PEGA_AQUI_EL_ID_DE_TU_HOJA"')
+    print('# indexnow_key = "tu-key"   # opcional')
+    print(f"\n# ({len(toks)} cuenta(s) de Google incluida(s))")
     print("\n================ HASTA AQUÍ ================\n")
     return 0
 

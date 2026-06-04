@@ -238,9 +238,20 @@ def enviar_a_indexar(limite_restante: int):
     if limite_restante <= 0:
         return 0, 0
     lote = storage.take_batch(limite_restante)
+    if not lote:
+        return 0, 0
+
+    # Enruta cada URL a la cuenta de Google que tiene acceso a esa propiedad.
+    cmap = st.session_state.get("acc_creds") or auth.creds_map()
+    site_acc = settings.get("site_accounts", {}) or {}
+    svc_cache: dict = {}
+
     ok = err = 0
     for it in lote:
-        res = indexing.publish_url(it["url"])
+        acc = site_acc.get(it["site_url"])
+        if acc not in svc_cache:
+            svc_cache[acc] = indexing.make_service(cmap.get(acc))
+        res = indexing.publish_url(it["url"], service=svc_cache[acc])
         storage.mark(it["url"], "sent" if res.ok else "error", res.detail)
         if res.ok:
             ok += 1
@@ -262,34 +273,50 @@ with st.sidebar:
         st.divider()
 
     st.header("⚙️ Configuración")
-    st.markdown("**Acceso a Google**")
+    st.markdown("**Cuentas de Google**")
+    cuentas = []
     if autenticado:
-        st.success(identidad)
-        if auth.has_oauth_token():
-            if st.button("🚪 Cerrar sesión", use_container_width=True):
-                auth.oauth_logout()
-                st.session_state.sites = None
-                st.rerun()
+        try:
+            cuentas = auth.accounts()
+        except Exception:
+            cuentas = []
+        if cuentas:
+            for c in cuentas:
+                st.success(f"✅ {c['name']}")
+        else:
+            st.success(identidad)
     else:
-        st.error("Sin sesión iniciada.")
+        st.error("Sin cuentas conectadas.")
 
-    # Login OAuth (recomendado para muchos clientes).
-    if auth.has_client_secret() and not auth.has_oauth_token():
-        st.caption("Inicia sesión con tu cuenta de agencia para ver todos tus clientes.")
-        if st.button("🔐 Iniciar sesión con Google", type="primary", use_container_width=True):
+    # Añadir cuenta (en local: abre el navegador). Requiere client_secret.json.
+    if auth.has_client_secret():
+        etiqueta = "🔐 Iniciar sesión con Google" if not auth.has_oauth_token() else "➕ Añadir otra cuenta de Google"
+        if st.button(etiqueta, type="primary", use_container_width=True):
             with st.spinner("Abriendo el navegador para autorizar…"):
                 try:
-                    auth.oauth_login()
+                    if not auth.has_oauth_token():
+                        auth.oauth_login()
+                    else:
+                        auth.add_account()
                     st.session_state.sites = None
-                    st.success("¡Sesión iniciada!")
                     st.rerun()
                 except Exception as e:  # noqa: BLE001
-                    st.error(f"No se pudo iniciar sesión: {e}")
-    elif not auth.has_client_secret() and not autenticado:
+                    st.error(f"No se pudo conectar la cuenta: {e}")
+    elif not autenticado:
         st.caption(
             "Para OAuth, coloca `client_secret.json` en la carpeta del proyecto "
             "(o usa una cuenta de servicio). Ver README."
         )
+
+    if cuentas and auth.has_oauth_token():
+        with st.expander("Gestionar cuentas"):
+            for c in cuentas:
+                cc1, cc2 = st.columns([3, 1])
+                cc1.caption(c["name"])
+                if cc2.button("Quitar", key=f"rm_{c['name']}"):
+                    auth.remove_account(c["name"])
+                    st.session_state.sites = None
+                    st.rerun()
 
     st.divider()
     daily_limit = st.number_input(
@@ -336,7 +363,13 @@ with sel_cols[1]:
     st.write("")
     if st.button("🔄 Cargar clientes", disabled=not autenticado, use_container_width=True):
         try:
-            st.session_state.sites = gsc.list_sites()
+            accs = auth.accounts()
+            st.session_state.acc_creds = {a["name"]: a["creds"] for a in accs}
+            st.session_state.sites = gsc.list_sites_all_accounts(accs)
+            settings.set_(
+                "site_accounts",
+                {s["siteUrl"]: s.get("account") for s in st.session_state.sites},
+            )
         except Exception as e:  # noqa: BLE001
             st.session_state.sites = []
             st.error(f"No se pudieron cargar las propiedades: {e}")
@@ -344,18 +377,20 @@ with sel_cols[1]:
 site_url = None
 domain = None
 perms = {}
+site_acc = {}
 
 with sel_cols[0]:
     if st.session_state.sites is None:
         st.empty()
     elif not st.session_state.sites:
         st.warning(
-            "No hay propiedades accesibles. Añade el email de la cuenta de "
-            "servicio como usuario en la Search Console de tus clientes."
+            "No hay propiedades accesibles. Añade el email de tu cuenta como "
+            "usuario en la Search Console de tus clientes."
         )
     else:
         site_urls = [s["siteUrl"] for s in st.session_state.sites]
         perms = {s["siteUrl"]: s.get("permissionLevel", "?") for s in st.session_state.sites}
+        site_acc = {s["siteUrl"]: s.get("account") for s in st.session_state.sites}
         site_url = st.selectbox(
             "👤 Cliente", options=site_urls, format_func=clients.label_for
         )
@@ -364,7 +399,7 @@ with sel_cols[0]:
 if site_url:
     chips = st.columns([2, 2, 3])
     chips[0].caption(f"Propiedad: `{site_url}`")
-    chips[1].caption(f"Permiso: `{perms.get(site_url, '?')}`")
+    chips[1].caption(f"Permiso: `{perms.get(site_url, '?')}` · cuenta: `{site_acc.get(site_url, '?')}`")
     with chips[2]:
         current = clients.load_names().get(site_url, "")
         new_name = st.text_input(
@@ -427,6 +462,7 @@ with tab_analisis:
             st.session_state.an = {
                 "running": True,
                 "site_url": site_url,
+                "account": site_acc.get(site_url),
                 "urls": urls,
                 "i": 0,
                 "rows": [],
@@ -449,8 +485,9 @@ with tab_analisis:
             an["running"] = False
             st.rerun()
 
-        # Procesa una tanda y vuelve a ejecutar (deja hueco para pulsar Parar).
-        svc = gsc.make_service()
+        # Procesa una tanda con las credenciales de la cuenta dueña del dominio.
+        _creds = (st.session_state.get("acc_creds") or {}).get(an.get("account"))
+        svc = gsc.make_service(_creds)
         for url in an["urls"][an["i"]:an["i"] + BATCH]:
             r = gsc.inspect_url(an["site_url"], url, service=svc)
             an["rows"].append({

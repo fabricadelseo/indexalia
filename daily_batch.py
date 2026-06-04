@@ -16,9 +16,35 @@ import os
 import sys
 from collections import defaultdict
 
-from core import clients, indexing, indexnow, settings, storage
+from core import auth, clients, gsc, indexing, indexnow, settings, storage
 
 DAILY_LIMIT = int(os.environ.get("DAILY_LIMIT", "3"))
+
+
+def _routing():
+    """Devuelve (mapa site_url->cuenta, mapa cuenta->servicio_indexing).
+
+    El cron tiene todas las cuentas (tokens en secrets), así que reconstruye
+    qué cuenta tiene acceso a cada propiedad para enviar con las credenciales
+    correctas.
+    """
+    accs = auth.accounts()
+    cmap = {a["name"]: a["creds"] for a in accs}
+    site_acc = {}
+    try:
+        for s in gsc.list_sites_all_accounts(accs):
+            site_acc[s["siteUrl"]] = s.get("account")
+    except Exception:
+        pass
+    svc_cache = {}
+
+    def service_for(site_url):
+        acc = site_acc.get(site_url)
+        if acc not in svc_cache:
+            svc_cache[acc] = indexing.make_service(cmap.get(acc))
+        return svc_cache[acc]
+
+    return service_for
 
 
 def _notify_indexnow(enviadas: list[dict]) -> None:
@@ -50,9 +76,10 @@ def run(limit: int = DAILY_LIMIT) -> None:
         return
 
     print(f"Enviando {len(lote)} URL(s) a Google (cupo restante {restante}/{limit})…")
+    service_for = _routing()
     enviadas = []
     for it in lote:
-        res = indexing.publish_url(it["url"])
+        res = indexing.publish_url(it["url"], service=service_for(it["site_url"]))
         ok = res.ok
         storage.mark(it["url"], "sent" if ok else "error", res.detail)
         print(f"  [Google {'OK ' if ok else 'ERR'}] {it['url']} -> {res.detail}")

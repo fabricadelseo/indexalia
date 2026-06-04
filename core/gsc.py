@@ -27,27 +27,57 @@ class InspectionResult:
     error: str | None = None
 
 
-def _build_service():
-    creds = get_credentials()
+def _build_service(creds=None):
+    creds = creds or get_credentials()
     # cache_discovery=False evita warnings/escrituras en disco en entornos cloud.
     return build("searchconsole", "v1", credentials=creds, cache_discovery=False)
 
 
-def make_service():
+def make_service(creds=None):
     """Servicio reutilizable (para analizar por tandas sin reconstruirlo)."""
-    return _build_service()
+    return _build_service(creds)
 
 
-def list_sites() -> list[dict]:
-    """Devuelve las propiedades a las que la cuenta de servicio tiene acceso.
+def list_sites(creds=None) -> list[dict]:
+    """Propiedades accesibles por UNA cuenta (creds). Por defecto, la principal.
 
     Cada elemento: {"siteUrl": "...", "permissionLevel": "siteOwner"|...}.
-    Esto puebla el selector de clientes automáticamente: aparecerán aquí
-    todas las propiedades de GSC donde hayas añadido el email de la cuenta.
     """
-    svc = _build_service()
+    svc = _build_service(creds)
     resp = svc.sites().list().execute()
     return resp.get("siteEntry", [])
+
+
+def list_sites_all_accounts(accs=None) -> list[dict]:
+    """Junta las propiedades de TODAS las cuentas OAuth conectadas.
+
+    Cada elemento añade "account" (email de la cuenta dueña del acceso).
+    Si un dominio aparece en varias cuentas, se queda con el de mayor permiso.
+    """
+    from .auth import accounts
+
+    if accs is None:
+        accs = accounts()
+    orden = {"siteOwner": 3, "siteFullUser": 2, "siteRestrictedUser": 1, "siteUnverifiedUser": 0}
+    mejor: dict[str, dict] = {}
+    for acc in accs:
+        try:
+            sites = list_sites(acc["creds"])
+        except Exception:
+            continue
+        for s in sites:
+            su = s["siteUrl"]
+            cand = {
+                "siteUrl": su,
+                "permissionLevel": s.get("permissionLevel", "?"),
+                "account": acc["name"],
+            }
+            prev = mejor.get(su)
+            if prev is None or orden.get(cand["permissionLevel"], -1) > orden.get(
+                prev["permissionLevel"], -1
+            ):
+                mejor[su] = cand
+    return sorted(mejor.values(), key=lambda x: x["siteUrl"])
 
 
 def _is_indexed(coverage_state: str, verdict: str) -> bool:
@@ -84,13 +114,13 @@ def inspect_url(site_url: str, url: str, service=None) -> InspectionResult:
         return InspectionResult(url, False, "Error", "FAIL", error=str(e))
 
 
-def inspect_many(site_url: str, urls: list[str], pause: float = 0.5, progress=None):
+def inspect_many(site_url: str, urls: list[str], pause: float = 0.5, progress=None, creds=None):
     """Inspecciona varias URLs respetando un pequeño retardo entre llamadas.
 
-    `progress` es un callback opcional progress(i, total) para la barra de Streamlit.
-    Devuelve lista de InspectionResult.
+    `creds` = credenciales de la cuenta dueña de la propiedad (multi-cuenta).
+    `progress` es un callback opcional progress(i, total) para la barra.
     """
-    svc = _build_service()
+    svc = _build_service(creds)
     results: list[InspectionResult] = []
     total = len(urls)
     for i, url in enumerate(urls, start=1):

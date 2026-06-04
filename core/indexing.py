@@ -25,9 +25,13 @@ class PublishResult:
     detail: str
 
 
-def _build_service():
-    creds = get_credentials()
+def _build_service(creds=None):
+    creds = creds or get_credentials()
     return build("indexing", "v3", credentials=creds, cache_discovery=False)
+
+
+def make_service(creds=None):
+    return _build_service(creds)
 
 
 def publish_url(url: str, service=None, action: str = "URL_UPDATED") -> PublishResult:
