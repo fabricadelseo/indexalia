@@ -352,6 +352,14 @@ with st.sidebar:
                     st.rerun()
 
     st.divider()
+    _sid = settings.get("sheet_id")
+    if _sid:
+        st.link_button(
+            "📄 Abrir hoja de Sheets",
+            f"https://docs.google.com/spreadsheets/d/{_sid}",
+            use_container_width=True,
+            type="primary",
+        )
     per_domain = st.number_input(
         "URLs por día y dominio (Google)", min_value=1, max_value=200,
         value=PER_DOMAIN_DEFAULT,
@@ -366,14 +374,6 @@ with st.sidebar:
         "a enviar. 0 = reintentar siempre.",
     )
     st.caption(f"Backend de la cola: **{storage.backend_name()}**")
-    _sid = settings.get("sheet_id")
-    if _sid:
-        st.link_button(
-            "📄 Abrir hoja de Sheets",
-            f"https://docs.google.com/spreadsheets/d/{_sid}",
-            use_container_width=True,
-            type="primary",
-        )
 
     st.divider()
     st.subheader("IndexNow (Bing/Yandex)")
