@@ -18,7 +18,7 @@ from collections import defaultdict
 
 from core import auth, clients, gsc, indexing, indexnow, settings, storage
 
-DAILY_LIMIT = int(os.environ.get("DAILY_LIMIT", "10"))
+DAILY_LIMIT = int(os.environ.get("DAILY_LIMIT", "20"))
 
 
 def _routing():
