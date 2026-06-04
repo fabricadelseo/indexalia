@@ -262,7 +262,11 @@ def _web_flow(cfg):
             "redirect_uris": [cfg["redirect_uri"]],
         }
     }
-    flow = Flow.from_client_config(client_config, scopes=SCOPES)
+    # autogenerate_code_verifier=False -> sin PKCE (el redirect vuelve en otra
+    # sesión y se perdería el verifier -> "Missing code verifier").
+    flow = Flow.from_client_config(
+        client_config, scopes=SCOPES, autogenerate_code_verifier=False
+    )
     flow.redirect_uri = cfg["redirect_uri"]
     return flow
 
