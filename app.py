@@ -358,6 +358,13 @@ with st.sidebar:
         "a enviar. 0 = reintentar siempre.",
     )
     st.caption(f"Backend de la cola: **{storage.backend_name()}**")
+    _sid = settings.get("sheet_id")
+    if _sid:
+        st.link_button(
+            "📄 Abrir hoja de Sheets",
+            f"https://docs.google.com/spreadsheets/d/{_sid}",
+            use_container_width=True,
+        )
 
     st.divider()
     st.subheader("IndexNow (Bing/Yandex)")
