@@ -72,9 +72,17 @@ st.markdown(
       button[kind="primary"], button[kind="primaryFormSubmit"],
       button[data-testid="stBaseButton-primary"],
       button[data-testid="baseButton-primary"],
-      button[data-testid="stBaseButton-primaryFormSubmit"] {
+      button[data-testid="stBaseButton-primaryFormSubmit"],
+      a[data-testid="stBaseLinkButton-primary"],
+      a[data-testid="baseLinkButton-primary"],
+      a[kind="primary"] {
         background: #FF6A00 !important; border: 1px solid #FF6A00 !important;
         color: #fff !important; box-shadow: 0 2px 8px rgba(255,106,0,.32) !important;
+      }
+      a[data-testid="stBaseLinkButton-primary"]:hover,
+      a[data-testid="baseLinkButton-primary"]:hover {
+        background: #E85F00 !important; border-color: #E85F00 !important;
+        color: #fff !important;
       }
       button[kind="primary"]:hover, button[kind="primaryFormSubmit"]:hover,
       button[data-testid="stBaseButton-primary"]:hover,
@@ -364,6 +372,7 @@ with st.sidebar:
             "📄 Abrir hoja de Sheets",
             f"https://docs.google.com/spreadsheets/d/{_sid}",
             use_container_width=True,
+            type="primary",
         )
 
     st.divider()
