@@ -1,8 +1,8 @@
 """Envío diario escalonado (drip-feed) — Google Indexing API + IndexNow.
 
 Pensado para ejecutarse SOLO una vez al día desde GitHub Actions (cron).
-1. Coge hasta DAILY_LIMIT URLs pendientes de la cola y las envía a Google,
-   respetando el cupo de las ya enviadas hoy (drip-feed).
+1. Envía las URLs en proceso a Google respetando el límite por dominio
+   (PER_DOMAIN_LIMIT) y el tope global del día (GLOBAL_LIMIT).
 2. Si hay key de IndexNow configurada, además avisa a Bing/Yandex de esas
    mismas URLs (gratis y sin límite, por eso se hace siempre que haya key).
 
@@ -18,7 +18,8 @@ from collections import defaultdict
 
 from core import auth, clients, gsc, indexing, indexnow, settings, storage
 
-DAILY_LIMIT = int(os.environ.get("DAILY_LIMIT", "35"))
+PER_DOMAIN = int(os.environ.get("PER_DOMAIN_LIMIT", "10"))  # por dominio/día
+GLOBAL_CAP = int(os.environ.get("GLOBAL_LIMIT", "200"))     # tope global/día
 
 
 def _routing():
@@ -63,19 +64,14 @@ def _notify_indexnow(enviadas: list[dict]) -> None:
         print(f"  [IndexNow {estado}] {dominio} ({len(urls)} URLs) -> {res.detail}")
 
 
-def run(limit: int = DAILY_LIMIT) -> None:
-    sent_today = storage.count_sent_today()
-    restante = max(0, limit - sent_today)
-    if restante == 0:
-        print(f"Cupo diario de Google agotado ({sent_today}/{limit}). Nada que hacer.")
-        return
-
-    lote = storage.take_batch(restante)
+def run(per_domain: int = PER_DOMAIN, global_cap: int = GLOBAL_CAP) -> None:
+    lote = storage.select_to_send(per_domain, global_cap)
     if not lote:
-        print("No hay URLs pendientes en la cola.")
+        print("No hay URLs que enviar hoy (cupos cubiertos o cola vacía).")
         return
 
-    print(f"Enviando {len(lote)} URL(s) a Google (cupo restante {restante}/{limit})…")
+    print(f"Enviando {len(lote)} URL(s) a Google "
+          f"(máx {per_domain}/dominio, tope global {global_cap})…")
     service_for = _routing()
     enviadas = []
     for it in lote:
@@ -91,5 +87,5 @@ def run(limit: int = DAILY_LIMIT) -> None:
 
 
 if __name__ == "__main__":
-    lim = int(sys.argv[1]) if len(sys.argv) > 1 else DAILY_LIMIT
-    run(lim)
+    pd = int(sys.argv[1]) if len(sys.argv) > 1 else PER_DOMAIN
+    run(pd, GLOBAL_CAP)

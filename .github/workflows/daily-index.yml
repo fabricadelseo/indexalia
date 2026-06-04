@@ -30,5 +30,6 @@ jobs:
           SHEET_ID: ${{ secrets.SHEET_ID }}
           # Refuerzo gratis Bing/Yandex (opcional):
           INDEXNOW_KEY: ${{ secrets.INDEXNOW_KEY }}
-          DAILY_LIMIT: "35"
+          PER_DOMAIN_LIMIT: "10"   # URLs/día por dominio
+          GLOBAL_LIMIT: "200"      # tope global/día (límite de Google)
         run: python daily_batch.py

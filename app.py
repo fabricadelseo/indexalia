@@ -30,7 +30,8 @@ if _LOGO.exists():
     except Exception:
         pass
 
-DAILY_LIMIT = 35  # máximo de URLs/día a Google (global, todos los dominios)
+PER_DOMAIN_DEFAULT = 10   # máximo de URLs/día a Google POR cada dominio
+GLOBAL_CAP = 200          # tope global diario (límite de la Indexing API de Google)
 
 # Paleta de marca (La Fábrica del SEO)
 NARANJA = "#FF6A00"   # naranja intenso de marca
@@ -240,15 +241,11 @@ def render_tour(paso: int) -> None:
         )
 
 
-def enviar_a_indexar(limite_restante: int):
-    """Envía hasta `limite_restante` URLs en proceso a Google (Indexing API).
-
-    Devuelve (enviadas_ok, errores). Respeta el goteo: solo manda las que
-    caben en el cupo de hoy; el resto se quedan en proceso para el cron.
+def enviar_a_indexar(per_domain: int, global_cap: int = GLOBAL_CAP):
+    """Envía a Google las URLs en proceso respetando el límite por dominio y el
+    tope global del día. Devuelve (enviadas_ok, errores).
     """
-    if limite_restante <= 0:
-        return 0, 0
-    lote = storage.take_batch(limite_restante)
+    lote = storage.select_to_send(per_domain, global_cap)
     if not lote:
         return 0, 0
 
@@ -347,11 +344,13 @@ with st.sidebar:
                     st.rerun()
 
     st.divider()
-    daily_limit = st.number_input(
-        "URLs a enviar por día (Google)", min_value=1, max_value=200, value=DAILY_LIMIT,
-        help="Total diario sumando TODOS los dominios. La Indexing API de Google "
-        "permite hasta ~200/día por proyecto.",
+    per_domain = st.number_input(
+        "URLs por día y dominio (Google)", min_value=1, max_value=200,
+        value=PER_DOMAIN_DEFAULT,
+        help="Máximo de URLs que se envían a Google al día por CADA dominio. "
+        f"Hay además un tope global de {GLOBAL_CAP}/día (límite de Google).",
     )
+    st.caption(f"Tope global de seguridad: **{GLOBAL_CAP}/día**.")
     retry_days = st.number_input(
         "Reintentar tras (días sin indexar)", min_value=0, max_value=90,
         value=int(settings.get("retry_days", 15)),
@@ -542,8 +541,7 @@ with tab_analisis:
         if an["auto"] and rows:
             no_idx = [r["URL"] for r in rows if not r["_indexed"]]
             registradas = storage.add_urls(no_idx, an["site_url"], retry_days=retry_days)
-            restante = max(0, daily_limit - storage.count_sent_today())
-            enviadas, errores = enviar_a_indexar(restante)
+            enviadas, errores = enviar_a_indexar(per_domain)
             st.session_state.envio_resumen = {
                 "registradas": registradas,
                 "enviadas": enviadas,
@@ -620,8 +618,7 @@ with tab_analisis:
             f"📤 Enviar a indexar {len(no_index_urls)} no indexadas"
         ):
             registradas = storage.add_urls(no_index_urls, site_url, retry_days=retry_days)
-            restante = max(0, daily_limit - storage.count_sent_today())
-            enviadas, errores = enviar_a_indexar(restante)
+            enviadas, errores = enviar_a_indexar(per_domain)
             en_proceso = len(storage.pending())
             st.success(
                 f"📤 {enviadas} enviadas a indexar hoy · {en_proceso} en proceso "
@@ -662,22 +659,25 @@ with tab_cola:
                 use_container_width=True,
             )
 
-    restante = max(0, daily_limit - sent_today)
+    global_rest = max(0, GLOBAL_CAP - sent_today)
     st.progress(
-        min(1.0, sent_today / daily_limit) if daily_limit else 0.0,
-        text=f"Cupo de envío a Google de hoy: {sent_today}/{daily_limit} (quedan {restante})",
+        min(1.0, sent_today / GLOBAL_CAP) if GLOBAL_CAP else 0.0,
+        text=f"Cupo global de hoy: {sent_today}/{GLOBAL_CAP} · {per_domain}/día por dominio",
     )
     st.caption(
-        "Las URLs **en proceso** se envían a Google poco a poco (según el cupo diario) "
-        "automáticamente con el cron. Aquí puedes forzar el envío de hoy."
+        "Las URLs **en proceso** se envían a Google poco a poco "
+        f"(máx. {per_domain}/día por dominio) automáticamente con el cron. "
+        "Aquí puedes forzar el envío de hoy."
     )
 
+    # ¿Cuántas se enviarían ahora respetando los límites?
+    enviables = len(storage.select_to_send(per_domain, GLOBAL_CAP))
     if st.button(
-        f"📤 Enviar a indexar ahora ({restante} de hoy)",
+        f"📤 Enviar a indexar ahora ({enviables} disponibles)",
         type="primary",
-        disabled=restante == 0 or not pend or not autenticado,
+        disabled=enviables == 0 or not autenticado,
     ):
-        enviadas, errores = enviar_a_indexar(restante)
+        enviadas, errores = enviar_a_indexar(per_domain)
         st.success(f"📤 {enviadas} enviadas a indexar a Google.")
         if errores:
             st.warning(f"{errores} con error (revisa permisos de Propietario).")
