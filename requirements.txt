@@ -1,3 +1,4 @@
+# build: indexalia v1 (reinicio limpio)
 streamlit>=1.33
 google-api-python-client>=2.120
 google-auth>=2.29
