@@ -334,12 +334,14 @@ with st.sidebar:
             "Secrets (ver README)."
         )
 
-    if cuentas and auth.has_oauth_token():
-        with st.expander("Gestionar cuentas"):
-            for c in cuentas:
-                cc1, cc2 = st.columns([3, 1])
-                cc1.caption(c["name"])
-                if cc2.button("Quitar", key=f"rm_{c['name']}"):
+    # Solo se pueden quitar las cuentas añadidas (con email); la principal no.
+    quitables = [c for c in cuentas if "@" in c["name"]]
+    if quitables:
+        with st.expander("Gestionar cuentas añadidas"):
+            for c in quitables:
+                st.caption(c["name"])
+                if st.button(f"🗑️ Quitar {c['name']}", key=f"rm_{c['name']}",
+                             use_container_width=True):
                     auth.remove_account(c["name"])
                     st.session_state.sites = None
                     st.rerun()

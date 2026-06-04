@@ -141,7 +141,13 @@ def _base_accounts() -> list[dict]:
         creds = _creds_from_file(val) if kind == "file" else _creds_from_raw(val)
         if not creds:
             continue
-        name = label if "@" in label else (_email_of(creds) or label)
+        if "@" in label:
+            name = label
+        else:
+            name = _email_of(creds)  # intenta el email real
+            if not name:
+                # token antiguo sin permiso de email -> nombre legible
+                name = "Cuenta principal"
         if name in seen:
             continue
         seen.add(name)
