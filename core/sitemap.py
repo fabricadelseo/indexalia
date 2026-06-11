@@ -7,7 +7,16 @@ from urllib.parse import urljoin, urlparse
 
 import requests
 
-_HEADERS = {"User-Agent": "IndexadorSEO/1.0 (+https://example.com)"}
+# Cabeceras de navegador: algunos servidores/WAF devuelven 403/415 si el
+# User-Agent no es de navegador o falta la cabecera Accept.
+_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+    ),
+    "Accept": "application/xml,text/xml,application/xhtml+xml,text/html;q=0.9,*/*;q=0.8",
+    "Accept-Language": "es-ES,es;q=0.9,en;q=0.8",
+}
 _TIMEOUT = 20
 
 
