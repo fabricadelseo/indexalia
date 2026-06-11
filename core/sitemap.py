@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+import re
 import xml.etree.ElementTree as ET
 from urllib.parse import urljoin, urlparse
 
 import requests
+
+# Excluye espacios, comillas y caracteres de Markdown ()[]<> para no pegar URLs.
+_URL_RE = re.compile(r'https?://[^\s<>"\'\)\(\]\[]+', re.I)
 
 # Cabeceras de navegador: algunos servidores/WAF devuelven 403/415 si el
 # User-Agent no es de navegador o falta la cabecera Accept.
@@ -35,14 +39,12 @@ def candidate_sitemaps(domain: str) -> list[str]:
     found: list[str] = []
 
     # 1) Leer robots.txt en busca de líneas "Sitemap:"
-    try:
-        r = requests.get(urljoin(base + "/", "robots.txt"), headers=_HEADERS, timeout=_TIMEOUT)
-        if r.ok:
-            for line in r.text.splitlines():
-                if line.lower().startswith("sitemap:"):
-                    found.append(line.split(":", 1)[1].strip())
-    except requests.RequestException:
-        pass
+    data, mode, _status, _via = _fetch(urljoin(base + "/", "robots.txt"))
+    if data:
+        text = data.decode("utf-8", "ignore") if mode == "xml" else data
+        for line in text.splitlines():
+            if line.lower().startswith("sitemap:"):
+                found.append(line.split(":", 1)[1].strip())
 
     # 2) Rutas habituales como respaldo
     for path in ("/sitemap.xml", "/sitemap_index.xml", "/sitemap-index.xml"):
@@ -53,8 +55,58 @@ def candidate_sitemaps(domain: str) -> list[str]:
     return found
 
 
+def _jina(url: str) -> str | None:
+    """Lee una URL a través del proxy de lectura Jina (otra IP, evita WAF)."""
+    try:
+        r = requests.get("https://r.jina.ai/" + url, timeout=35)
+        if r.ok and r.text:
+            return r.text
+    except requests.RequestException:
+        return None
+    return None
+
+
+def _fetch(url: str):
+    """Descarga una URL. Devuelve (datos, modo, status, via).
+
+    Intenta directo; si el servidor bloquea (WAF/datacenter: 403/415/429/503…),
+    reintenta vía proxy de lectura. modo: 'xml' (bytes) | 'text' (str) | None.
+    """
+    status = None
+    try:
+        r = requests.get(url, headers=_HEADERS, timeout=_TIMEOUT)
+        if r.ok:
+            return r.content, "xml", r.status_code, "directo"
+        status = r.status_code
+    except requests.RequestException:
+        status = None
+    txt = _jina(url)
+    if txt:
+        return txt, "text", status, "proxy"
+    return None, None, status, None
+
+
 def _strip_ns(tag: str) -> str:
     return tag.split("}", 1)[-1] if "}" in tag else tag
+
+
+def _parse_text(text: str, host: str) -> tuple[list[str], list[str]]:
+    """Extrae URLs de texto plano (cuando el proxy quita las etiquetas XML).
+
+    Clasifica como sub-sitemap las que acaban en .xml o contienen 'sitemap'.
+    Solo conserva URLs del mismo host (evita ruido del proxy).
+    """
+    urls: list[str] = []
+    subs: list[str] = []
+    for raw in _URL_RE.findall(text):
+        u = raw.rstrip('.,);]')
+        if host and urlparse(u).netloc != host:
+            continue
+        if u.lower().endswith(".xml") or "sitemap" in u.lower():
+            subs.append(u)
+        else:
+            urls.append(u)
+    return urls, subs
 
 
 def _parse_xml(content: bytes) -> tuple[list[str], list[str]]:
@@ -85,6 +137,7 @@ def fetch_urls(domain: str, max_urls: int = 5000) -> tuple[list[str], list[str]]
     """
     log: list[str] = []
     seen_urls: set[str] = set()
+    host = urlparse(_normalize_domain(domain)).netloc
     pending = candidate_sitemaps(domain)
     visited: set[str] = set()
 
@@ -93,21 +146,27 @@ def fetch_urls(domain: str, max_urls: int = 5000) -> tuple[list[str], list[str]]
         if sm in visited:
             continue
         visited.add(sm)
-        try:
-            r = requests.get(sm, headers=_HEADERS, timeout=_TIMEOUT)
-        except requests.RequestException as e:
-            log.append(f"⚠️ No se pudo leer {sm}: {e}")
-            continue
-        if not r.ok:
-            log.append(f"⚠️ {sm} devolvió {r.status_code}")
+
+        data, mode, status, via = _fetch(sm)
+        if not data:
+            log.append(f"⚠️ {sm} no accesible (status {status}).")
             continue
 
-        urls, subs = _parse_xml(r.content)
+        if mode == "xml":
+            urls, subs = _parse_xml(data)
+            if not urls and not subs:  # por si vino como texto
+                urls, subs = _parse_text(data.decode("utf-8", "ignore"), host)
+        else:
+            urls, subs = _parse_text(data, host)
+
         if urls or subs:
-            log.append(f"✅ {sm}: {len(urls)} URLs, {len(subs)} sub-sitemaps")
+            via_txt = "" if via == "directo" else f" [{via}]"
+            log.append(f"✅ {sm}{via_txt}: {len(urls)} URLs, {len(subs)} sub-sitemaps")
         for u in urls:
             seen_urls.add(u)
-        pending.extend(subs)
+        for s in subs:
+            if s not in visited:
+                pending.append(s)
 
     if not seen_urls:
         log.append("❌ No se encontraron URLs en ningún sitemap.")
