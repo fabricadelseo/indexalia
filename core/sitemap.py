@@ -11,6 +11,25 @@ import requests
 # Excluye espacios, comillas y caracteres de Markdown ()[]<> para no pegar URLs.
 _URL_RE = re.compile(r'https?://[^\s<>"\'\)\(\]\[]+', re.I)
 
+# Extensiones que NO son páginas indexables (recursos): se descartan del análisis.
+_SKIP_EXT = {
+    ".css", ".js", ".mjs", ".map", ".json", ".xml", ".rss", ".txt",
+    ".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp", ".avif", ".ico", ".bmp",
+    ".tif", ".tiff", ".woff", ".woff2", ".ttf", ".otf", ".eot",
+    ".mp4", ".webm", ".mov", ".mp3", ".wav", ".avi", ".m4v",
+    ".zip", ".gz", ".tar", ".rar", ".7z", ".dmg", ".exe", ".csv",
+}
+
+
+def _is_page(url: str) -> bool:
+    """True si la URL parece una página (no un recurso css/js/imagen/etc.)."""
+    path = urlparse(url).path.lower()
+    last = path.rsplit("/", 1)[-1]
+    if "." not in last:
+        return True  # sin extensión -> página (ej. /servicios/)
+    ext = "." + last.rsplit(".", 1)[1]
+    return ext not in _SKIP_EXT
+
 # Cabeceras de navegador: algunos servidores/WAF devuelven 403/415 si el
 # User-Agent no es de navegador o falta la cabecera Accept.
 _HEADERS = {
@@ -163,7 +182,8 @@ def fetch_urls(domain: str, max_urls: int = 5000) -> tuple[list[str], list[str]]
             via_txt = "" if via == "directo" else f" [{via}]"
             log.append(f"✅ {sm}{via_txt}: {len(urls)} URLs, {len(subs)} sub-sitemaps")
         for u in urls:
-            seen_urls.add(u)
+            if _is_page(u):
+                seen_urls.add(u)
         for s in subs:
             if s not in visited:
                 pending.append(s)
