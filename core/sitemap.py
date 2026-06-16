@@ -17,7 +17,7 @@ _SKIP_EXT = {
     ".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp", ".avif", ".ico", ".bmp",
     ".tif", ".tiff", ".woff", ".woff2", ".ttf", ".otf", ".eot",
     ".mp4", ".webm", ".mov", ".mp3", ".wav", ".avi", ".m4v",
-    ".zip", ".gz", ".tar", ".rar", ".7z", ".dmg", ".exe", ".csv",
+    ".zip", ".gz", ".tar", ".rar", ".7z", ".dmg", ".exe", ".csv", ".pdf",
 }
 
 
