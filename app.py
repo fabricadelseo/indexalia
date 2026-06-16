@@ -535,11 +535,13 @@ with tab_analisis:
         svc = gsc.make_service(_creds)
         for url in an["urls"][an["i"]:an["i"] + BATCH]:
             r = gsc.inspect_url(an["site_url"], url, service=svc)
+            es_error = bool(r.error)
             an["rows"].append({
                 "URL": r.url,
-                "Indexada": "✅" if r.indexed else "❌",
-                "Estado Google": r.coverage_state,
+                "Indexada": "⚠️" if es_error else ("✅" if r.indexed else "❌"),
+                "Estado Google": "Sin acceso / error" if es_error else r.coverage_state,
                 "_indexed": r.indexed,
+                "_error": es_error,
             })
             an["i"] += 1
         if an["i"] >= total:
@@ -551,11 +553,15 @@ with tab_analisis:
         an["finalized"] = True
         rows = an["rows"]
         st.session_state.results = rows
+        # El histórico ignora las URLs con error (no se pudieron comprobar).
         st.session_state.cambios = history.add_snapshot(
-            an["site_url"], [{"url": r["URL"], "indexed": r["_indexed"]} for r in rows]
+            an["site_url"],
+            [{"url": r["URL"], "indexed": r["_indexed"]}
+             for r in rows if not r.get("_error")],
         )
         if an["auto"] and rows:
-            no_idx = [r["URL"] for r in rows if not r["_indexed"]]
+            # Solo se encolan las realmente NO indexadas (las de error se omiten).
+            no_idx = [r["URL"] for r in rows if not r["_indexed"] and not r.get("_error")]
             registradas = storage.add_urls(no_idx, an["site_url"], retry_days=retry_days)
             enviadas, errores = enviar_a_indexar(per_domain)
             st.session_state.envio_resumen = {
@@ -573,9 +579,13 @@ with tab_analisis:
 
     if st.session_state.results and not analizando:
         df = pd.DataFrame(st.session_state.results)
+        if "_error" not in df.columns:
+            df["_error"] = False
+        df["_error"] = df["_error"].fillna(False)
         total = len(df)
+        errores = int(df["_error"].sum())
         indexadas = int(df["_indexed"].sum())
-        no_indexadas = total - indexadas
+        no_indexadas = total - indexadas - errores
 
         left, right = st.columns([1, 1.4])
         with left:
@@ -585,6 +595,12 @@ with tab_analisis:
             mm1.metric("Total URLs", total)
             mm2.metric("Indexadas", indexadas)
             mm3.metric("No indexadas", no_indexadas)
+            if errores:
+                st.warning(
+                    f"⚠️ {errores} URLs no se pudieron comprobar (Google devolvió "
+                    "error). Suele ser **falta de acceso verificado** a esta "
+                    "propiedad en Search Console. No se envían a indexar."
+                )
 
             cambios = st.session_state.get("cambios")
             if cambios and (cambios["nuevas_indexadas"] or cambios["perdidas"]):
@@ -600,7 +616,7 @@ with tab_analisis:
 
         st.divider()
         solo_no = st.checkbox("Mostrar solo no indexadas", value=True)
-        view = df[~df["_indexed"]] if solo_no else df
+        view = df[(~df["_indexed"]) & (~df["_error"])] if solo_no else df
         st.dataframe(
             view[["URL", "Indexada", "Estado Google"]],
             use_container_width=True,
@@ -608,7 +624,8 @@ with tab_analisis:
             column_config={"URL": st.column_config.LinkColumn("URL", width="large")},
         )
 
-        no_index_urls = df[~df["_indexed"]]["URL"].tolist()
+        # No indexadas reales (excluye las de error): son las que se envían.
+        no_index_urls = df[(~df["_indexed"]) & (~df["_error"])]["URL"].tolist()
 
         resumen = st.session_state.get("envio_resumen")
         if resumen is not None:
