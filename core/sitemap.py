@@ -21,9 +21,18 @@ _SKIP_EXT = {
 }
 
 
+# Rutas internas (no son páginas reales): WordPress, etc.
+_SKIP_PATHS = (
+    "/wp-content/", "/wp-includes/", "/wp-admin/", "/wp-json/",
+    "/cdn-cgi/", "/xmlrpc.php", "/feed/", "/comments/feed/",
+)
+
+
 def _is_page(url: str) -> bool:
-    """True si la URL parece una página (no un recurso css/js/imagen/etc.)."""
+    """True si la URL parece una página (no recurso css/js/imagen ni ruta interna)."""
     path = urlparse(url).path.lower()
+    if any(seg in path for seg in _SKIP_PATHS):
+        return False
     last = path.rsplit("/", 1)[-1]
     if "." not in last:
         return True  # sin extensión -> página (ej. /servicios/)
