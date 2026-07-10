@@ -49,6 +49,14 @@ def take_batch(n, site_url=None):
     return _backend().take_batch(n, site_url)
 
 
+def due_for_recheck(retry_days, limit):
+    return _backend().due_for_recheck(retry_days, limit)
+
+
+def update_status(url, status, detail=""):
+    return _backend().update_status(url, status, detail)
+
+
 def remove(url):
     return _backend().remove(url)
 

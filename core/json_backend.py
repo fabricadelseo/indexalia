@@ -120,6 +120,29 @@ def take_batch(n: int, site_url: str | None = None) -> list[dict]:
     return pending(site_url)[:n]
 
 
+def due_for_recheck(retry_days: int, limit: int) -> list[dict]:
+    """URLs 'sent' con antigüedad >= retry_days (candidatas a re-verificar)."""
+    out = []
+    for it in _load():
+        if it["status"] == "sent" and _age_days(it.get("sent_at")) >= retry_days:
+            out.append(it)
+            if len(out) >= limit:
+                break
+    return out
+
+
+def update_status(url: str, status: str, detail: str = "") -> None:
+    """Actualiza el estado de una URL (cualquiera que sea su estado actual)."""
+    items = _load()
+    for it in items:
+        if it["url"] == url:
+            it["status"] = status
+            it["detail"] = detail
+            it["sent_at"] = _now()
+            break
+    _save(items)
+
+
 def remove(url: str) -> None:
     items = [it for it in _load() if it["url"] != url]
     _save(items)

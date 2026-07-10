@@ -30,6 +30,8 @@ jobs:
           SHEET_ID: ${{ secrets.SHEET_ID }}
           # Refuerzo gratis Bing/Yandex (opcional):
           INDEXNOW_KEY: ${{ secrets.INDEXNOW_KEY }}
-          PER_DOMAIN_LIMIT: "10"   # URLs/día por dominio
-          GLOBAL_LIMIT: "200"      # tope global/día (límite de Google)
+          PER_DOMAIN_LIMIT: "10"     # URLs/día por dominio
+          GLOBAL_LIMIT: "200"        # tope global/día (límite de Google)
+          RECHECK_AFTER_DAYS: "15"   # re-verificar lo enviado hace >= N días
+          RECHECK_LIMIT: "150"       # máx re-verificaciones/día (cuota)
         run: python daily_batch.py

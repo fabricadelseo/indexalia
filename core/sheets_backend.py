@@ -200,6 +200,36 @@ def mark(url: str, status: str, detail: str = "") -> None:
             return
 
 
+def due_for_recheck(retry_days: int, limit: int) -> list[dict]:
+    """URLs 'sent' con antigüedad >= retry_days (candidatas a re-verificar)."""
+    out = []
+    for it in all_items():
+        if it["status"] == "sent" and _age_days(it.get("sent_at")) >= retry_days:
+            out.append(it)
+            if len(out) >= limit:
+                break
+    return out
+
+
+def update_status(url: str, status: str, detail: str = "") -> None:
+    """Actualiza el estado de una URL cualquiera (no solo 'pending')."""
+    svc = _svc()
+    rows = _rows()
+    ahora = _now()
+    for i, row in enumerate(rows):
+        d = _to_dict(row)
+        if d["url"] == url:
+            row_num = i + 2
+            svc.spreadsheets().values().update(
+                spreadsheetId=_sheet_id(),
+                range=f"{_TAB}!C{row_num}:F{row_num}",
+                valueInputOption="RAW",
+                body={"values": [[status, d["added_at"], ahora, detail]]},
+            ).execute()
+            rows[i] = [d["url"], d["site_url"], status, d["added_at"], ahora, detail]
+            return
+
+
 def remove(url: str) -> None:
     """Marca como 'removed' (no borra la fila, para mantener el histórico simple)."""
     svc = _svc()
