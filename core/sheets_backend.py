@@ -72,14 +72,14 @@ def _invalidate() -> None:
 def _ensure_header(svc) -> None:
     """Crea la cabecera si la hoja está vacía."""
     rng = f"{_TAB}!A1:F1"
-    resp = svc.spreadsheets().values().get(spreadsheetId=_sheet_id(), range=rng).execute()
+    resp = svc.spreadsheets().values().get(spreadsheetId=_sheet_id(), range=rng).execute(num_retries=5)
     if not resp.get("values"):
         svc.spreadsheets().values().update(
             spreadsheetId=_sheet_id(),
             range=rng,
             valueInputOption="RAW",
             body={"values": [_HEADER]},
-        ).execute()
+        ).execute(num_retries=5)
 
 
 def _rows(force: bool = False) -> list[list[str]]:
@@ -92,7 +92,7 @@ def _rows(force: bool = False) -> list[list[str]]:
         svc.spreadsheets()
         .values()
         .get(spreadsheetId=_sheet_id(), range=f"{_TAB}!A2:F")
-        .execute()
+        .execute(num_retries=5)
     )
     data = resp.get("values", [])
     _CACHE["rows"] = data
@@ -144,7 +144,7 @@ def add_urls(urls: list[str], site_url: str, retry_days: int | None = None) -> i
                         url, d["site_url"] or site_url, "pending", _now(), "",
                         "reintento (seguía sin indexar)",
                     ]]},
-                ).execute()
+                ).execute(num_retries=5)
                 added += 1
         else:
             new_rows.append([url, site_url, "pending", _now(), "", ""])
@@ -157,7 +157,7 @@ def add_urls(urls: list[str], site_url: str, retry_days: int | None = None) -> i
             valueInputOption="RAW",
             insertDataOption="INSERT_ROWS",
             body={"values": new_rows},
-        ).execute()
+        ).execute(num_retries=5)
     _invalidate()
     return added
 
@@ -194,7 +194,7 @@ def mark(url: str, status: str, detail: str = "") -> None:
                 range=f"{_TAB}!C{row_num}:F{row_num}",
                 valueInputOption="RAW",
                 body={"values": [[status, d["added_at"], ahora, detail]]},
-            ).execute()
+            ).execute(num_retries=5)
             # Actualiza la caché en memoria (rows es el objeto cacheado).
             rows[i] = [d["url"], d["site_url"], status, d["added_at"], ahora, detail]
             return
@@ -225,7 +225,7 @@ def update_status(url: str, status: str, detail: str = "") -> None:
                 range=f"{_TAB}!C{row_num}:F{row_num}",
                 valueInputOption="RAW",
                 body={"values": [[status, d["added_at"], ahora, detail]]},
-            ).execute()
+            ).execute(num_retries=5)
             rows[i] = [d["url"], d["site_url"], status, d["added_at"], ahora, detail]
             return
 
@@ -243,6 +243,6 @@ def remove(url: str) -> None:
                 range=f"{_TAB}!C{row_num}",
                 valueInputOption="RAW",
                 body={"values": [["removed"]]},
-            ).execute()
+            ).execute(num_retries=5)
             _invalidate()
             return

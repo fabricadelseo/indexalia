@@ -268,7 +268,10 @@ def enviar_a_indexar(per_domain: int, global_cap: int = GLOBAL_CAP):
         if acc not in svc_cache:
             svc_cache[acc] = indexing.make_service(cmap.get(acc))
         res = indexing.publish_url(it["url"], service=svc_cache[acc])
-        storage.mark(it["url"], "sent" if res.ok else "error", res.detail)
+        try:
+            storage.mark(it["url"], "sent" if res.ok else "error", res.detail)
+        except Exception:  # noqa: BLE001  (pico de Sheets: no romper la app)
+            pass
         if res.ok:
             ok += 1
         else:

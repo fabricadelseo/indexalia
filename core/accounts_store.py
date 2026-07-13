@@ -40,17 +40,17 @@ def _sheet_id() -> str:
 
 def _ensure_tab(svc) -> None:
     sid = _sheet_id()
-    meta = svc.spreadsheets().get(spreadsheetId=sid).execute()
+    meta = svc.spreadsheets().get(spreadsheetId=sid).execute(num_retries=5)
     tabs = {s["properties"]["title"] for s in meta.get("sheets", [])}
     if _TAB not in tabs:
         svc.spreadsheets().batchUpdate(
             spreadsheetId=sid,
             body={"requests": [{"addSheet": {"properties": {"title": _TAB}}}]},
-        ).execute()
+        ).execute(num_retries=5)
         svc.spreadsheets().values().update(
             spreadsheetId=sid, range=f"{_TAB}!A1:B1",
             valueInputOption="RAW", body={"values": [_HEADER]},
-        ).execute()
+        ).execute(num_retries=5)
 
 
 def list_tokens(creds) -> list[tuple[str, str]]:
@@ -65,7 +65,7 @@ def list_tokens(creds) -> list[tuple[str, str]]:
         _ensure_tab(svc)
         resp = svc.spreadsheets().values().get(
             spreadsheetId=_sheet_id(), range=f"{_TAB}!A2:B"
-        ).execute()
+        ).execute(num_retries=5)
         out = []
         for row in resp.get("values", []):
             if len(row) >= 2 and row[0] and row[1]:
@@ -82,21 +82,21 @@ def save_token(creds, email: str, token_json: str) -> None:
     _ensure_tab(svc)
     rows = svc.spreadsheets().values().get(
         spreadsheetId=_sheet_id(), range=f"{_TAB}!A2:B"
-    ).execute().get("values", [])
+    ).execute(num_retries=5).get("values", [])
     # ¿Existe ya? -> actualiza esa fila; si no, añade.
     for i, row in enumerate(rows):
         if row and row[0] == email:
             svc.spreadsheets().values().update(
                 spreadsheetId=_sheet_id(), range=f"{_TAB}!A{i + 2}:B{i + 2}",
                 valueInputOption="RAW", body={"values": [[email, token_json]]},
-            ).execute()
+            ).execute(num_retries=5)
             _invalidate()
             return
     svc.spreadsheets().values().append(
         spreadsheetId=_sheet_id(), range=f"{_TAB}!A2:B",
         valueInputOption="RAW", insertDataOption="INSERT_ROWS",
         body={"values": [[email, token_json]]},
-    ).execute()
+    ).execute(num_retries=5)
     _invalidate()
 
 
@@ -104,14 +104,14 @@ def delete(creds, email: str) -> None:
     svc = _svc(creds)
     rows = svc.spreadsheets().values().get(
         spreadsheetId=_sheet_id(), range=f"{_TAB}!A2:B"
-    ).execute().get("values", [])
+    ).execute(num_retries=5).get("values", [])
     keep = [r for r in rows if not (r and r[0] == email)]
     svc.spreadsheets().values().clear(
         spreadsheetId=_sheet_id(), range=f"{_TAB}!A2:B"
-    ).execute()
+    ).execute(num_retries=5)
     if keep:
         svc.spreadsheets().values().update(
             spreadsheetId=_sheet_id(), range=f"{_TAB}!A2:B",
             valueInputOption="RAW", body={"values": keep},
-        ).execute()
+        ).execute(num_retries=5)
     _invalidate()
