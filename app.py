@@ -249,22 +249,14 @@ def render_tour(paso: int) -> None:
         )
 
 
-def enviar_a_indexar(per_domain: int, global_cap: int = GLOBAL_CAP):
-    """Envía a Google las URLs en proceso respetando el límite por dominio y el
-    tope global del día. Devuelve (enviadas_ok, errores).
-    """
-    lote = storage.select_to_send(per_domain, global_cap)
-    if not lote:
-        return 0, 0
-
-    # Enruta cada URL a la cuenta de Google que tiene acceso a esa propiedad.
+def _enviar_lote(lote):
+    """Envía un lote de URLs a Google enrutando por cuenta. Devuelve (ok, err)."""
     cmap = st.session_state.get("acc_creds") or auth.creds_map()
-    site_acc = settings.get("site_accounts", {}) or {}
+    site_acc_map = settings.get("site_accounts", {}) or {}
     svc_cache: dict = {}
-
     ok = err = 0
     for it in lote:
-        acc = site_acc.get(it["site_url"])
+        acc = site_acc_map.get(it["site_url"])
         if acc not in svc_cache:
             svc_cache[acc] = indexing.make_service(cmap.get(acc))
         res = indexing.publish_url(it["url"], service=svc_cache[acc])
@@ -277,6 +269,28 @@ def enviar_a_indexar(per_domain: int, global_cap: int = GLOBAL_CAP):
         else:
             err += 1
     return ok, err
+
+
+def enviar_prioritario(site_url: str, cuantas: int, global_cap: int = GLOBAL_CAP):
+    """Envía YA las URLs en proceso de UN cliente, saltándose el tope por dominio.
+
+    Solo respeta el tope global del día (límite de Google).
+    """
+    restante_global = max(0, global_cap - storage.count_sent_today())
+    lote = storage.pending(site_url)[: min(cuantas, restante_global)]
+    if not lote:
+        return 0, 0
+    return _enviar_lote(lote)
+
+
+def enviar_a_indexar(per_domain: int, global_cap: int = GLOBAL_CAP):
+    """Envía a Google las URLs en proceso respetando el límite por dominio y el
+    tope global del día. Devuelve (enviadas_ok, errores).
+    """
+    lote = storage.select_to_send(per_domain, global_cap)
+    if not lote:
+        return 0, 0
+    return _enviar_lote(lote)
 
 
 # --------------------------------------------------------------- sidebar ----
@@ -722,6 +736,37 @@ with tab_cola:
         if errores:
             st.warning(f"{errores} con error (revisa permisos de Propietario).")
         st.rerun()
+
+    # --- Prioridad: adelantar un cliente urgente saltándose el tope por dominio ---
+    st.markdown("##### ⚡ Priorizar un cliente")
+    if not site_url:
+        st.caption("Selecciona un cliente arriba para poder priorizarlo.")
+    else:
+        pend_cli = [it for it in pend if it["site_url"] == site_url]
+        st.caption(
+            f"**{clients.label_for(site_url)}** tiene **{len(pend_cli)}** URLs en proceso. "
+            f"Cupo global libre hoy: {global_rest}."
+        )
+        max_env = min(len(pend_cli), global_rest)
+        if max_env > 0:
+            n_prio = st.number_input(
+                "Cuántas enviar ahora (se salta el límite por dominio)",
+                min_value=1, max_value=max_env, value=min(max_env, 25),
+            )
+            if st.button(
+                f"⚡ Enviar ya {n_prio} de este cliente (prioridad)",
+                disabled=not autenticado,
+            ):
+                ok_p, err_p = enviar_prioritario(site_url, int(n_prio))
+                st.success(f"⚡ {ok_p} enviadas a indexar con prioridad.")
+                if err_p:
+                    st.warning(f"{err_p} con error.")
+                st.rerun()
+        else:
+            st.caption(
+                "Sin URLs en proceso para este cliente, o el cupo global de hoy "
+                "está agotado."
+            )
 
     st.markdown("##### 📡 IndexNow (Bing / Yandex) — gratis, sin tope diario")
     in_key = settings.get("indexnow_key", "")
