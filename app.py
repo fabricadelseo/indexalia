@@ -125,6 +125,13 @@ st.markdown(
       .tour .sep {flex: 0 0 26px; height: 2px; background: #ECEAE7; border-radius: 2px;}
       .tourhint {font-size: .92rem; color: #E85F00; font-weight: 600; margin: .15rem 0 .7rem;}
 
+      /* Caja destacada (prioridad) */
+      div[data-testid="stVerticalBlockBorderWrapper"] {
+        border: 1.5px solid #FFC299 !important;
+        background: #FFF7F1;
+        border-radius: 14px;
+      }
+
       button[data-baseweb="tab"] {font-size: .98rem; font-weight: 600;}
       a, a:visited {color: #E85F00;}
     </style>
@@ -684,38 +691,45 @@ with tab_analisis:
 
     # --- Prioridad: adelantar este cliente saltándose el tope por dominio ---
     if site_url and not analizando:
-        st.divider()
-        st.markdown("##### ⚡ Priorizar este cliente")
-        try:
-            _pend_cli = storage.pending(site_url)
-            _global_rest = max(0, GLOBAL_CAP - storage.count_sent_today())
-        except Exception:  # noqa: BLE001
-            _pend_cli, _global_rest = [], 0
-        st.caption(
-            f"**{clients.label_for(site_url)}** tiene **{len(_pend_cli)}** URLs en "
-            f"proceso. Cupo global libre hoy: {_global_rest} de {GLOBAL_CAP}."
-        )
-        _max_env = min(len(_pend_cli), _global_rest)
-        if _max_env > 0:
-            n_prio = st.number_input(
-                "Cuántas enviar ahora (se salta el límite por dominio)",
-                min_value=1, max_value=_max_env, value=min(_max_env, 25),
-                key="prio_n",
-            )
-            if st.button(
-                f"⚡ Enviar ya {n_prio} de este cliente (prioridad)",
-                type="primary", key="prio_btn", disabled=not autenticado,
-            ):
-                ok_p, err_p = enviar_prioritario(site_url, int(n_prio))
-                st.success(f"⚡ {ok_p} enviadas a indexar con prioridad.")
-                if err_p:
-                    st.warning(f"{err_p} con error.")
-                st.rerun()
-        else:
-            st.caption(
-                "Sin URLs en proceso para este cliente, o el cupo global de hoy "
-                "está agotado."
-            )
+        st.write("")
+        with st.container(border=True):
+            st.markdown("#### ⚡ Priorizar este cliente")
+            try:
+                _pend_cli = storage.pending(site_url)
+                _global_rest = max(0, GLOBAL_CAP - storage.count_sent_today())
+            except Exception:  # noqa: BLE001
+                _pend_cli, _global_rest = [], 0
+
+            pc1, pc2 = st.columns(2)
+            pc1.metric("⏳ En proceso de este cliente", len(_pend_cli))
+            pc2.metric("🌍 Cupo global libre hoy", f"{_global_rest}/{GLOBAL_CAP}")
+
+            _max_env = min(len(_pend_cli), _global_rest)
+            if _max_env > 0:
+                st.caption(
+                    "Envía ya sus URLs **saltándose el límite por dominio** "
+                    "(útil para un cliente urgente). Respeta el tope global de Google."
+                )
+                n_prio = st.number_input(
+                    "Cuántas enviar ahora",
+                    min_value=1, max_value=_max_env, value=min(_max_env, 25),
+                    key="prio_n",
+                )
+                if st.button(
+                    f"⚡ Enviar ya {n_prio} de este cliente (prioridad)",
+                    type="primary", key="prio_btn",
+                    use_container_width=True, disabled=not autenticado,
+                ):
+                    ok_p, err_p = enviar_prioritario(site_url, int(n_prio))
+                    st.success(f"⚡ {ok_p} enviadas a indexar con prioridad.")
+                    if err_p:
+                        st.warning(f"{err_p} con error.")
+                    st.rerun()
+            else:
+                st.caption(
+                    "Sin URLs en proceso para este cliente, o el cupo global de hoy "
+                    "está agotado."
+                )
 
 # ======================================================== TAB INDEXACIONES ===
 with tab_cola:
