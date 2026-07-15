@@ -225,10 +225,10 @@ def render_tour(paso: int) -> None:
     """Indicador de pasos guiado (1 Cargar · 2 Elegir · 3 Analizar)."""
     pasos = ["Cargar clientes", "Elegir cliente", "Analizar y enviar"]
     pistas = {
-        1: '👉 Pulsa **Cargar clientes** (arriba a la derecha) para traer tus '
+        1: "👉 Pulsa <b>Cargar clientes</b> (arriba a la derecha) para traer tus "
            "propiedades de Search Console.",
         2: "👉 Elige un cliente en el desplegable.",
-        3: '👉 Pulsa **Analizar y enviar a indexar**.',
+        3: "👉 Pulsa <b>Analizar y enviar a indexar</b>.",
     }
     bloques = []
     for i, nombre in enumerate(pasos, start=1):
