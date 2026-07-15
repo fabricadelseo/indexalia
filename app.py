@@ -682,6 +682,41 @@ with tab_analisis:
     elif not analizando:
         st.empty()
 
+    # --- Prioridad: adelantar este cliente saltándose el tope por dominio ---
+    if site_url and not analizando:
+        st.divider()
+        st.markdown("##### ⚡ Priorizar este cliente")
+        try:
+            _pend_cli = storage.pending(site_url)
+            _global_rest = max(0, GLOBAL_CAP - storage.count_sent_today())
+        except Exception:  # noqa: BLE001
+            _pend_cli, _global_rest = [], 0
+        st.caption(
+            f"**{clients.label_for(site_url)}** tiene **{len(_pend_cli)}** URLs en "
+            f"proceso. Cupo global libre hoy: {_global_rest} de {GLOBAL_CAP}."
+        )
+        _max_env = min(len(_pend_cli), _global_rest)
+        if _max_env > 0:
+            n_prio = st.number_input(
+                "Cuántas enviar ahora (se salta el límite por dominio)",
+                min_value=1, max_value=_max_env, value=min(_max_env, 25),
+                key="prio_n",
+            )
+            if st.button(
+                f"⚡ Enviar ya {n_prio} de este cliente (prioridad)",
+                type="primary", key="prio_btn", disabled=not autenticado,
+            ):
+                ok_p, err_p = enviar_prioritario(site_url, int(n_prio))
+                st.success(f"⚡ {ok_p} enviadas a indexar con prioridad.")
+                if err_p:
+                    st.warning(f"{err_p} con error.")
+                st.rerun()
+        else:
+            st.caption(
+                "Sin URLs en proceso para este cliente, o el cupo global de hoy "
+                "está agotado."
+            )
+
 # ======================================================== TAB INDEXACIONES ===
 with tab_cola:
     try:
@@ -736,37 +771,6 @@ with tab_cola:
         if errores:
             st.warning(f"{errores} con error (revisa permisos de Propietario).")
         st.rerun()
-
-    # --- Prioridad: adelantar un cliente urgente saltándose el tope por dominio ---
-    st.markdown("##### ⚡ Priorizar un cliente")
-    if not site_url:
-        st.caption("Selecciona un cliente arriba para poder priorizarlo.")
-    else:
-        pend_cli = [it for it in pend if it["site_url"] == site_url]
-        st.caption(
-            f"**{clients.label_for(site_url)}** tiene **{len(pend_cli)}** URLs en proceso. "
-            f"Cupo global libre hoy: {global_rest}."
-        )
-        max_env = min(len(pend_cli), global_rest)
-        if max_env > 0:
-            n_prio = st.number_input(
-                "Cuántas enviar ahora (se salta el límite por dominio)",
-                min_value=1, max_value=max_env, value=min(max_env, 25),
-            )
-            if st.button(
-                f"⚡ Enviar ya {n_prio} de este cliente (prioridad)",
-                disabled=not autenticado,
-            ):
-                ok_p, err_p = enviar_prioritario(site_url, int(n_prio))
-                st.success(f"⚡ {ok_p} enviadas a indexar con prioridad.")
-                if err_p:
-                    st.warning(f"{err_p} con error.")
-                st.rerun()
-        else:
-            st.caption(
-                "Sin URLs en proceso para este cliente, o el cupo global de hoy "
-                "está agotado."
-            )
 
     st.markdown("##### 📡 IndexNow (Bing / Yandex) — gratis, sin tope diario")
     in_key = settings.get("indexnow_key", "")
