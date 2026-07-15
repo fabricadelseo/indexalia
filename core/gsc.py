@@ -48,6 +48,20 @@ def list_sites(creds=None) -> list[dict]:
     return resp.get("siteEntry", [])
 
 
+def list_sitemaps(site_url: str, creds=None) -> list[str]:
+    """Sitemaps que la propiedad tiene registrados en Search Console.
+
+    Es la fuente fiable: evita adivinar rutas (/sitemap.xml…) y funciona con
+    nombres no estándar (p. ej. PrestaShop: 1_es_0_sitemap.xml).
+    """
+    try:
+        svc = _build_service(creds)
+        resp = svc.sitemaps().list(siteUrl=site_url).execute()
+        return [s["path"] for s in resp.get("sitemap", []) if s.get("path")]
+    except Exception:
+        return []
+
+
 def list_sites_all_accounts(accs=None) -> list[dict]:
     """Junta las propiedades de TODAS las cuentas OAuth conectadas.
 

@@ -504,7 +504,11 @@ with tab_analisis:
     # --- Arranque del análisis: lee el sitemap y prepara el estado por tandas ---
     if analizar:
         with st.spinner("Leyendo sitemap…"):
-            urls, log = sitemap.fetch_urls(domain, max_urls=max_urls)
+            # Preguntamos a Search Console qué sitemaps tiene la propiedad
+            # (fiable: nombres no estándar, subdominio www, etc.).
+            _c = (st.session_state.get("acc_creds") or {}).get(site_acc.get(site_url))
+            sm_gsc = gsc.list_sitemaps(site_url, _c)
+            urls, log = sitemap.fetch_urls(domain, max_urls=max_urls, extra=sm_gsc)
         if urls:
             st.session_state.results = None
             st.session_state.an = {

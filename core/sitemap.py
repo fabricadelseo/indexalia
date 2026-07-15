@@ -118,6 +118,15 @@ def _strip_ns(tag: str) -> str:
     return tag.split("}", 1)[-1] if "}" in tag else tag
 
 
+def _same_host(a: str, b: str) -> bool:
+    """Compara hosts ignorando 'www.' (ejemplo.com == www.ejemplo.com)."""
+    na = a.lower().split(":")[0]
+    nb = b.lower().split(":")[0]
+    na = na[4:] if na.startswith("www.") else na
+    nb = nb[4:] if nb.startswith("www.") else nb
+    return na == nb
+
+
 def _parse_text(text: str, host: str) -> tuple[list[str], list[str]]:
     """Extrae URLs de texto plano (cuando el proxy quita las etiquetas XML).
 
@@ -128,7 +137,7 @@ def _parse_text(text: str, host: str) -> tuple[list[str], list[str]]:
     subs: list[str] = []
     for raw in _URL_RE.findall(text):
         u = raw.rstrip('.,);]')
-        if host and urlparse(u).netloc != host:
+        if host and not _same_host(urlparse(u).netloc, host):
             continue
         if u.lower().endswith(".xml") or "sitemap" in u.lower():
             subs.append(u)
@@ -158,15 +167,26 @@ def _parse_xml(content: bytes) -> tuple[list[str], list[str]]:
     return urls, subs
 
 
-def fetch_urls(domain: str, max_urls: int = 5000) -> tuple[list[str], list[str]]:
+def fetch_urls(
+    domain: str, max_urls: int = 5000, extra: list[str] | None = None
+) -> tuple[list[str], list[str]]:
     """Devuelve (urls, mensajes_log) recorriendo el/los sitemap(s) del dominio.
 
+    `extra`: sitemaps conocidos (p. ej. los registrados en Search Console).
     Sigue índices de sitemaps de forma recursiva (con tope de seguridad).
     """
     log: list[str] = []
     seen_urls: set[str] = set()
     host = urlparse(_normalize_domain(domain)).netloc
-    pending = candidate_sitemaps(domain)
+
+    # Los sitemaps registrados en Search Console van primero (fuente fiable);
+    # después robots.txt y las rutas típicas como respaldo.
+    pending = list(extra or [])
+    if pending:
+        log.append(f"🔎 {len(pending)} sitemap(s) registrados en Search Console.")
+    for c in candidate_sitemaps(domain):
+        if c not in pending:
+            pending.append(c)
     visited: set[str] = set()
 
     while pending and len(seen_urls) < max_urls:
