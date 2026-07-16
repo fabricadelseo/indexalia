@@ -477,10 +477,13 @@ if site_url:
         if st.button("💾 Guardar nombre"):
             clients.set_name(site_url, new_name)
             st.rerun()
-    if perms.get(site_url) not in ("siteOwner", "siteFullUser"):
+    # La Indexing API de Google exige ser PROPIETARIO (siteOwner) de la propiedad.
+    if perms.get(site_url) != "siteOwner":
         st.warning(
-            "Con este permiso podrás comprobar indexación, pero para **solicitar "
-            "indexación** la cuenta debe ser **Propietario** de la propiedad."
+            f"Tu acceso aquí es `{perms.get(site_url, '?')}`, no **Propietario**. "
+            "Podrás **analizar** la indexación, pero Google **no permite solicitar "
+            "indexación** (dará *Permission denied*). Para poder indexar, pide que "
+            "te añadan como **Propietario** en esa Search Console."
         )
 
 # --- Tour guiado: marca el paso actual según el estado ---
@@ -535,6 +538,7 @@ with tab_analisis:
                 "running": True,
                 "site_url": site_url,
                 "account": site_acc.get(site_url),
+                "perm": perms.get(site_url),
                 "urls": urls,
                 "i": 0,
                 "rows": [],
@@ -586,7 +590,12 @@ with tab_analisis:
             [{"url": r["URL"], "indexed": r["_indexed"]}
              for r in rows if not r.get("_error")],
         )
-        if an["auto"] and rows:
+        if an["auto"] and rows and an.get("perm") != "siteOwner":
+            # Sin ser Propietario, Google rechaza la indexación (403): no encolamos.
+            st.session_state.envio_resumen = None
+            st.session_state.sin_permiso = an.get("perm")
+        elif an["auto"] and rows:
+            st.session_state.sin_permiso = None
             # Solo se encolan las realmente NO indexadas (las de error se omiten).
             no_idx = [r["URL"] for r in rows if not r["_indexed"] and not r.get("_error")]
             registradas = storage.add_urls(no_idx, an["site_url"], retry_days=retry_days)
@@ -654,6 +663,14 @@ with tab_analisis:
         # No indexadas reales (excluye las de error): son las que se envían.
         no_index_urls = df[(~df["_indexed"]) & (~df["_error"])]["URL"].tolist()
 
+        _sin_perm = st.session_state.get("sin_permiso")
+        if _sin_perm:
+            st.warning(
+                f"🔒 No se enviaron a indexar: tu acceso es `{_sin_perm}` y Google "
+                "exige ser **Propietario** para solicitar indexación. Pide acceso "
+                "de Propietario en esa Search Console (o usa IndexNow para Bing)."
+            )
+
         resumen = st.session_state.get("envio_resumen")
         if resumen is not None:
             if resumen["registradas"] == 0 and resumen["enviadas"] == 0:
@@ -674,8 +691,11 @@ with tab_analisis:
                 )
 
         # Botón manual (por si desactivaste el envío automático o quieres reintentar).
+        _es_owner = perms.get(site_url) == "siteOwner"
         if no_index_urls and st.button(
-            f"📤 Enviar a indexar {len(no_index_urls)} no indexadas"
+            f"📤 Enviar a indexar {len(no_index_urls)} no indexadas",
+            disabled=not _es_owner,
+            help=None if _es_owner else "Necesitas ser Propietario de la propiedad.",
         ):
             registradas = storage.add_urls(no_index_urls, site_url, retry_days=retry_days)
             enviadas, errores = enviar_a_indexar(per_domain)
