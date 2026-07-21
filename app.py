@@ -521,6 +521,20 @@ with tab_analisis:
         "las que caben en el cupo de hoy y el resto quedan en proceso (el cron "
         "las envía cada día).",
     )
+    cc1, cc2 = st.columns([2, 1])
+    with cc1:
+        continuar = st.checkbox(
+            "Continuar: saltar las ya revisadas (para sitios grandes)",
+            value=False,
+            help="Google limita a ~2.000 inspecciones/día por dominio. Con esto, "
+            "cada día analiza las que aún no revisaste y así avanzas por tandas "
+            "en webs de miles de URLs sin repetir.",
+        )
+    with cc2:
+        dias_omitir = st.number_input(
+            "revisadas hace < (días)", min_value=1, max_value=90, value=7,
+            disabled=not continuar,
+        )
 
     BATCH = 10  # URLs por tanda (entre tandas se puede pulsar Parar)
 
@@ -531,7 +545,23 @@ with tab_analisis:
             # (fiable: nombres no estándar, subdominio www, etc.).
             _c = (st.session_state.get("acc_creds") or {}).get(site_acc.get(site_url))
             sm_gsc = gsc.list_sitemaps(site_url, _c)
-            urls, log = sitemap.fetch_urls(domain, max_urls=max_urls, extra=sm_gsc)
+            # Traemos TODO el sitemap (parsear no gasta cuota); el tope se aplica
+            # al inspeccionar, tras filtrar las ya revisadas si "Continuar".
+            urls, log = sitemap.fetch_urls(domain, max_urls=50000, extra=sm_gsc)
+            total_sitemap = len(urls)
+            if continuar:
+                ya = history.checked_within(site_url, int(dias_omitir))
+                urls = [u for u in urls if u not in ya]
+                log.append(
+                    f"⏭️ Continuar: {len(ya)} ya revisadas (<{int(dias_omitir)}d) "
+                    f"omitidas; quedan {len(urls)} por revisar."
+                )
+            urls = urls[:max_urls]
+            if total_sitemap > max_urls or (continuar and len(urls) == max_urls):
+                log.append(
+                    f"ℹ️ Se analizan {len(urls)} de esta tanda. Repite el análisis "
+                    "otro día (con 'Continuar' marcado) para las siguientes."
+                )
         if urls:
             st.session_state.results = None
             st.session_state.an = {

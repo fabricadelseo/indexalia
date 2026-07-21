@@ -91,3 +91,29 @@ def snapshots(site_url: str | None = None) -> list[dict]:
     if site_url is None:
         return snaps
     return [s for s in snaps if s["site_url"] == site_url]
+
+
+def checked_within(site_url: str, days: int) -> set[str]:
+    """URLs de esta propiedad revisadas en los últimos `days` días.
+
+    Sirve para 'continuar' un análisis grande sin repetir las ya comprobadas
+    (respetando el límite de ~2.000 inspecciones/día de Google).
+    """
+    from datetime import timedelta
+
+    state = _load()["url_state"].get(site_url, {})
+    limite = datetime.now(timezone.utc) - timedelta(days=days)
+    recientes = set()
+    for url, info in state.items():
+        ts = info.get("last_checked")
+        if not ts:
+            continue
+        try:
+            dt = datetime.fromisoformat(ts)
+        except ValueError:
+            continue
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        if dt >= limite:
+            recientes.add(url)
+    return recientes
