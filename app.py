@@ -14,6 +14,10 @@ from pathlib import Path
 from core import (
     access, auth, clients, gsc, history, indexing, indexnow, settings, sitemap, storage,
 )
+from core import hotreload
+
+# Aplica cambios de core/* tras un deploy sin necesidad de Reboot manual.
+hotreload.reload_if_changed()
 
 st.set_page_config(
     page_title="Indexalia · La Fábrica del SEO",
