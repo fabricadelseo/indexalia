@@ -506,7 +506,7 @@ tab_analisis, tab_cola, tab_hist = st.tabs(
 with tab_analisis:
     c_opts = st.columns([3, 1])
     with c_opts[0]:
-        max_urls = st.slider("Máximo de URLs a analizar", 10, 1000, 100, step=10)
+        max_urls = st.slider("Máximo de URLs a analizar", 10, 5000, 100, step=10)
     with c_opts[1]:
         st.write("")
         st.write("")
